@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ZM - Console</title>
+
+  <link rel="icon" type="image/ico" href="graphics/favicon.ico"/>
+  <link rel="shortcut icon" href="graphics/favicon.ico"/>
+<link rel="stylesheet" href="cache/css_reset-base-1752558138.css" type="text/css"/>
+<link rel="stylesheet" href="cache/css_font-awesome.min-base-1752558138.css" type="text/css"/>
+<link rel="stylesheet" href="cache/css_bootstrap.min-base-1752558138.css" type="text/css"/>
+<link rel="stylesheet" href="cache/skins_classic_js_dateTimePicker_jquery-ui-timepicker-addon-base-1752558138.css" type="text/css"/>
+<link rel="stylesheet" href="cache/skins_classic_js_jquery-ui-1.13.2_jquery-ui.structure.min-base-1752558138.css" type="text/css"/>
+<link rel="stylesheet" href="cache/skins_classic_js_bootstrap-table-1.22.3_bootstrap-table.min-base-1752558138.css" type="text/css"/>
+<link rel="stylesheet" href="cache/skins_classic_js_bootstrap-table-1.22.3_extensions_page-jump-to_bootstrap-table-page-jump-to.min-base-1752558138.css" type="text/css"/>
+  <link rel="stylesheet" href="skins/classic/js/jquery-ui-1.13.2/jquery-ui.theme.min.css" type="text/css"/>
+    <link rel="stylesheet" href="skins/classic/js/chosen/chosen.min.css" type="text/css"/>
+<link rel="stylesheet" href="cache/skins_classic_css_base_skin-base-1752558138.css" type="text/css"/>
+<link rel="stylesheet" href="cache/skins_classic_css_base_views_console-base-1752558138.css" type="text/css"/>
+  <style>
+  </style>
+
+<script nonce="f8617a8fc113b7027b19877e56d4254e">if (top != self) {top.location.href = self.location.href;}</script>
+<script nonce="f8617a8fc113b7027b19877e56d4254e">var csrfMagicToken = "key:b61c06e41b6fa97d95b806b1da6af5cf9d8e7576,1783774287";var csrfMagicName = "__csrf_magic";</script><script src="includes/csrf/csrf-magic.js"></script>
+						</head>
+
+<body>
+<noscript>
+<div style="background-color:red;color:white;font-size:x-large;">
+ZoneMinder requires Javascript. Please enable Javascript in your browser for this site.
+
+</div>
+</noscript>
+<div class="container-fluid" id="navbar-container">
+  <div class="navbar-brand">
+    <a id="getNavBrandHTML" class="dropdown" data-toggle="dropdown" href="#">ZoneMinder</a>
+<ul style="background-color:#485460" class="dropdown-menu">
+<li><a class="dropdown-item" href="https://zoneminder.com/" target="_blank">ZoneMinder</a></li>
+<li><a class="dropdown-item" href="https://zoneminder.readthedocs.io/en/stable/" target="_blank">Documentation</a></li>
+<li><a class="dropdown-item" href="https://forums.zoneminder.com/" target="_blank">Support</a></li>
+</ul>
+  </div>
+  <div class="navbars">
+    <nav class="navbar navbar-expand-md flex-row" id="navbar-one">
+    <!-- the Navigation Bar Hamburger Button   -->
+<!--
+    <div class="nav justify-content-end flex-grow-1">
+-->
+      <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#main-header-nav" aria-expanded="false">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="navbar-toggler-icon">
+          <i class="material-icons md-20">menu</i>
+        </span>
+      </button>
+      <button id="flipNarrow" type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbar-two" aria-expanded="true">
+        <span class="sr-only">Toggle guages</span>
+        <span class="navbar-toggler-icon">
+          <i class="material-icons md-20">monitor</i>
+        </span>
+      </button>
+<!--
+   </div>
+-->
+    <div class="collapse navbar-collapse" id="main-header-nav">
+<ul class="nav navbar-nav align-self-start justify-content-center"><li id="getConsoleHTML" class="nav-item"><a class="nav-link" href="?view=console">Console</a></li>
+<li id="getOptionsHTML" class="nav-item"><a class="nav-link" href="?view=options">Options</a></li>
+<li id="getLogHTML" class="nav-item"><a class="nav-link text-success" href="?view=log">Log</a></li>
+<li id="getGroupsHTML" class="nav-item"><a class="nav-link" href="?view=groups">Groups</a></li>
+<li id="getFilterHTML" class="nav-item"><a class="nav-link" href="?view=filter">Filters</a></li>
+<li id="getCycleHTML" class="nav-item"><a class="nav-link" href="?view=watch&amp;cycle=true">Cycle</a></li>
+<li id="getMontageReviewHTML" class="nav-item"><a class="nav-link" href="?view=montagereview">Montage Review</a></li>
+<li id="getReportsHTML" class="nav-item"><a class="nav-link" href="?view=reports">Reports</a></li>
+<li id="getRprtEvntAuditHTML" class="nav-item"><a class="nav-link" href="?view=report_event_audit">Audit Events Report</a></li>
+<li id="getHeaderFlipHTML" class="nav-item dropdown"><a class="nav-link" href="#"><i id="flip" class="material-icons md-18" style="display: inline-block;">keyboard_arrow_up</i></a></li>
+</ul></div><div id="accountstatus">
+<ul class="nav navbar-nav justify-content-end align-self-start flex-grow-1"><li id="getAccountCircleHTML" class="navbar-text navbar-nav mr-2">
+<a href="#" id="logoutButton" data-toggle="modal" data-target="#modalLogout" data-backdrop="false"><i class="material-icons">account_circle</i> admin</a>
+</li>
+<li id="getStatusBtnHTML" class="navbar-text">
+Running
+</li>
+</ul>
+    </div>
+        </nav><!-- End First Navbar -->
+
+  <nav class="navbar navbar-expand-md justify-content-center" id="navbar-two"
+>
+    <div class="container-fluid" id="panel">
+      <div id="reload" class="container-fluid">
+        <ul id="Bandwidth" class="navbar-nav justify-content-start">
+          <li id="getBandwidthHTML" class="nav-item dropdown mx-2">
+<a class="dropdown-toggle mr-2" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" id="dropdown_bandwidth"><i class="material-icons md-18 mr-1" style="display: inline-block;">network_check</i>High</a>
+<div class="dropdown-menu" aria-labelledby="dropdown_bandwidth">
+<a data-pdsa-dropdown-val="high" class="dropdown-item bwselect" href="#">High</a>
+<a data-pdsa-dropdown-val="medium" class="dropdown-item bwselect" href="#">Medium</a>
+<a data-pdsa-dropdown-val="low" class="dropdown-item bwselect" href="#">Low</a>
+</div>
+</li>
+        </ul>
+        
+        <ul class="navbar-nav list-inline justify-content-center">
+          <li id="getSysLoadHTML" class="Load nav-item mx-2"><i class="material-icons md-18" style="display: inline-block;">trending_up</i>&nbsp;Load: 0.00</li>
+<li id="getCpuUsageHTML" class="CpuUsage nav-item mx-2">
+&nbsp;Cpu: 1.9%
+</li>
+<li id="getDbConHTML" class="nav-item dropdown mx-2">
+<i class="material-icons md-18 mr-1" style="display: inline-block;">storage</i>
+DB: 7/151
+</li>
+<li id="getStorageHTML" class="nav-item mx-2">
+<a class="" title="6.80GB of 8.70GB null used by events" href="?view=options&amp;tab=storage">Default: 78%</a>
+</li>
+ <li id="getRamHTML" class="nav-item dropdown mx-2"><span class="" title="1.03GB of 3.78GB">Memory: 27%</span> <span class="" title="0.00B  of 2.00GB">Swap: 0%</span> </li>
+        </ul>
+
+        <ul id="Version" class="nav navbar-nav justify-content-end">
+          <li id="getZMVersionHTML" class="nav-item dropdown text-warning" data-placement="bottom" title="An update to ZoneMinder is available.">
+v1.37.63
+</li>
+        </ul>
+      </div>
+    </div><!-- End Collapsible Panel -->
+  </nav><!-- End Second Navbar -->
+  
+  </div><!--navbars-->
+</div><!--navbar continaer-->
+<div id="page">
+  <div id="content">
+  <form name="monitorForm" method="post" action="?view=console"><input type='hidden' name='__csrf_magic' value="key:b61c06e41b6fa97d95b806b1da6af5cf9d8e7576,1783774287" />
+    <input type="hidden" name="action" value=""/>
+
+    <div id="fbpanel" class="filterBar hidden-shift">
+      
+<div class="controlHeader">
+
+  <!-- Used to submit the form with the enter key -->
+  <input type="submit" class="d-none"/>
+  <input type="hidden" name="filtering" value=""/>
+<span class="term MonitorNameFilter"><label>Name</label><span class="term-value-wrapper"><input type="text" name="MonitorName" value="" placeholder="text or regular expression"/></span></span>
+<span class="term CapturingFilter"><label>Capturing</label><span class="term-value-wrapper"><select name="Capturing[]"  data-on-change="submitThisForm" class="chosen" multiple="multiple" data-placeholder="All">
+<option value="None">None</option>
+<option value="Always">Always</option>
+<option value="OnDemand">On Demand</option>
+</select></span></span>
+<span class="term AnalysingFilter"><label>Analysing</label><span class="term-value-wrapper"><select name="Analysing[]"  data-on-change="submitThisForm" class="chosen" multiple="multiple" data-placeholder="All">
+<option value="None">None</option>
+<option value="Always">Always</option>
+</select></span></span>
+<span class="term RecordingFilter"><label>Recording</label><span class="term-value-wrapper"><select name="Recording[]"  data-on-change="submitThisForm" class="chosen" multiple="multiple" data-placeholder="All">
+<option value="None">None</option>
+<option value="OnMotion">On Motion</option>
+<option value="Always">Always</option>
+</select></span></span>
+<span class="term StatusFilter"><label>Status</label><span class="term-value-wrapper"><select name="Status[]"  data-on-change="submitThisForm" class="chosen" multiple="multiple" data-placeholder="All">
+<option value="Unknown">Unknown</option>
+<option value="NotRunning">Not Running</option>
+<option value="Running">Not Capturing</option>
+<option value="Connected">Capturing</option>
+</select></span></span><span class="term SourceFilter"><label>Source</label><span class="term-value-wrapper"><input type="text" name="Source" value="" placeholder="text or regular expression"/></span></span><span class="term MonitorFilter"><label>Monitor</label><span class="term-value-wrapper"><select name="MonitorId[]"  data-on-change="submitThisForm" class="chosen" multiple="multiple" data-placeholder="All">
+</select></span></span></div>
+    </div>
+
+    <div id="toolbar" class="container-fluid pt-2 pb-2">
+      <div class="statusBreakdown">
+      </div>
+
+      <div class="middleButtons">
+        <button type="button" id="scanBtn" title="Network Scan" data-on-click="scanNetwork">
+        <i class="material-icons">wifi</i>
+        <span class="text">Scan Network</span>
+        </button>
+        <button type="button" name="addBtn" data-on-click="addMonitor"
+                >
+          <i class="material-icons">add_circle</i>
+          <span class="text">&nbsp;Add</span>
+        </button>
+        <button type="button" name="cloneBtn" data-on-click-this="cloneMonitor"
+                style="display:none;">
+          <i class="material-icons">content_copy</i>
+  <!--content_copy used instead of file_copy as there is a bug in material-icons -->
+          <span class="text">&nbsp;Clone</span>
+        </button>
+        <button type="button" name="editBtn" data-on-click-this="editMonitor" disabled="disabled">
+          <i class="material-icons">edit</i>
+          <span class="text">&nbsp;Edit</span>
+        </button>
+        <button type="button" name="deleteBtn" data-on-click-this="deleteMonitor" disabled="disabled">
+          <i class="material-icons">delete</i>
+          <span class="text">&nbsp;Delete</span>
+        </button>
+        <button type="button" name="selectBtn" data-on-click-this="selectMonitor" disabled="disabled">
+          <i class="material-icons">view_list</i>
+          <span class="text">&nbsp;Select</span>
+        </button>
+      </div>
+      <div class="rightButtons">
+        <button type="button" id="sortBtn" data-on-click-this="sortMonitors">
+        <i class="material-icons sort" title="Click and drag rows to change order">swap_vert</i>
+        <span class="text">Sort</span>
+        </button>
+      </div>
+        
+        &nbsp;<a href="#" data-flip-сontrol-object="#fbpanel"><i id="fbflip" class="material-icons" data-icon-visible="filter_alt_off" data-icon-hidden="filter_alt"></i></a>
+    
+    </div><!-- contentButtons -->
+    <div id="monitorList" class="container-fluid table-responsive-sm">
+      <table class="table table-striped table-hover table-condensed consoleTable">
+        <thead class="thead-highlight">
+          <tr>
+            <th class="colMark"><input type="checkbox" name="toggleCheck" value="1" data-checkbox-name="markMids[]" data-on-click-this="updateFormCheckboxesByName"/></th>
+            <th class="colId">Id</th>
+            <th class="colName"><i class="material-icons">videocam</i>&nbsp;Name</th>
+            <th class="colFunction">Function</th>
+            <th class="colSource"><i class="material-icons">settings</i>&nbsp;Source</th>
+<th class="colEvents"><a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">Events</a></th>
+<th class="colEvents"><a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=StartDateTime&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=%3E%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=-1+hour&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bcnj%5D=and&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bop%5D=%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">Hour</a></th>
+<th class="colEvents"><a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=StartDateTime&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=%3E%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=-1+day&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bcnj%5D=and&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bop%5D=%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">Day</a></th>
+<th class="colEvents"><a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=StartDateTime&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=%3E%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=-7+day&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bcnj%5D=and&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bop%5D=%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">Week</a></th>
+<th class="colEvents"><a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=StartDateTime&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=%3E%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=-1+month&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bcnj%5D=and&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bop%5D=%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">Month</a></th>
+<th class="colEvents"><a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=Archived&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=1&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bcnj%5D=and&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bop%5D=%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">Archived</a></th>
+            <th class="colZones"><a href="?view=zones">Zones</a></th>
+          </tr>
+        </thead>
+        <tbody id="consoleTableBody">
+        </tbody>
+        <tfoot>
+          <tr>
+            <td class="colMark"></td>
+            <td class="colId">Total:0</td>
+            <td class="colName"></td>
+            <td class="colFunction">0.00B /s</td>
+            <td class="colSource"></td>
+            <td class="colEvents">
+              <a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=IN&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">0</a><br/>
+              <div class="small text-nowrap text-muted">0.00B </div>
+            </td>
+            <td class="colEvents">
+              <a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=StartDateTime&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=%3E%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=-1+hour&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bcnj%5D=and&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bop%5D=IN&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">0</a><br/>
+              <div class="small text-nowrap text-muted">0.00B </div>
+            </td>
+            <td class="colEvents">
+              <a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=StartDateTime&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=%3E%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=-1+day&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bcnj%5D=and&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bop%5D=IN&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">0</a><br/>
+              <div class="small text-nowrap text-muted">0.00B </div>
+            </td>
+            <td class="colEvents">
+              <a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=StartDateTime&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=%3E%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=-7+day&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bcnj%5D=and&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bop%5D=IN&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">0</a><br/>
+              <div class="small text-nowrap text-muted">0.00B </div>
+            </td>
+            <td class="colEvents">
+              <a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=StartDateTime&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=%3E%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=-1+month&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bcnj%5D=and&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bop%5D=IN&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">0</a><br/>
+              <div class="small text-nowrap text-muted">0.00B </div>
+            </td>
+            <td class="colEvents">
+              <a href="?view=events&amp;page=1&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Battr%5D=Archived&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bop%5D=%3D&amp;filter%5BQuery%5D%5Bterms%5D%5B0%5D%5Bval%5D=1&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bcnj%5D=and&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Battr%5D=Monitor&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bop%5D=IN&amp;filter%5BQuery%5D%5Bterms%5D%5B1%5D%5Bval%5D=&amp;filter%5BQuery%5D%5Bsort_asc%5D=1&amp;filter%5BQuery%5D%5Bsort_field%5D=StartDateTime&amp;filter%5BQuery%5D%5Bskip_locked%5D=&amp;filter%5BQuery%5D%5Blimit%5D=0">0</a><br/>
+              <div class="small text-nowrap text-muted">0.00B </div>
+            </td>
+            <td class="colZones">0</td>
+         </tr>
+        </tfoot>
+        </table>
+    </div><!-- content table responsive div -->
+  </form>
+</div><!--content-->
+</div><!--page-->
+  <script src="cache/skins_classic_js_jquery.min-base-1752558138.js"></script>
+  <script src="skins/classic/js/jquery-ui-1.13.2/jquery-ui.min.js"></script>
+  <script src="cache/js_ajaxQueue-base-1752558138.js"></script>
+  <script src="skins/classic/js/bootstrap-4.5.0.min.js"></script>
+<script src="cache/js_fontfaceobserver.standalone-base-1752558138.js"></script>
+<script src="cache/skins_classic_js_tableExport.min-base-1752558138.js"></script>
+<script src="cache/skins_classic_js_bootstrap-table-1.22.3_bootstrap-table.min-base-1752558138.js"></script>
+<script src="cache/skins_classic_js_bootstrap-table-1.22.3_extensions_export_bootstrap-table-export.min-base-1752558138.js"></script>
+<script src="cache/skins_classic_js_bootstrap-table-1.22.3_extensions_page-jump-to_bootstrap-table-page-jump-to.min-base-1752558138.js"></script>
+<script src="cache/skins_classic_js_bootstrap-table-1.22.3_extensions_cookie_bootstrap-table-cookie-base-1752558138.js"></script>
+<script src="cache/skins_classic_js_bootstrap-table-1.22.3_extensions_toolbar_bootstrap-table-toolbar.min-base-1752558138.js"></script>
+<script src="cache/skins_classic_js_bootstrap-table-1.22.3_extensions_auto-refresh_bootstrap-table-auto-refresh.min-base-1752558138.js"></script>
+<script src="cache/skins_classic_js_chosen_chosen.jquery-base-1752558138.js"></script>
+<script src="cache/skins_classic_js_dateTimePicker_jquery-ui-timepicker-addon-base-1752558138.js"></script>
+<script src="cache/js_Server-base-1752558138.js"></script>
+  <script src="skins/classic/js/moment.min.js"></script>
+  <script src="skins/classic/js/luxon-3.4.4.min.js"></script>
+  <script nonce="f8617a8fc113b7027b19877e56d4254e">
+    var $j = jQuery.noConflict();
+    var DateTime = luxon.DateTime;
+const ZM_WEB_VIEWING_TIMEOUT=0;
+const AJAX_TIMEOUT = 10000;
+const navBarRefresh = 60000;
+const currentView = 'console';
+const homeView = 'console';
+
+const exportProgressString = 'Exporting';
+const exportFailedString = 'Export Failed';
+const exportSucceededString = 'Export Succeeded';
+const cancelString = 'Cancel';
+const thisUrl = '/zm/index.php';
+const skinPath = 'skins/classic';
+const serverId = 0;
+const Servers = [];
+Servers[0] = new Server({"Id":null,"Name":"","Protocol":"http","Hostname":"cctv.htb","Port":"80","PathToIndex":"\/zm\/index.php","PathToZMS":"\/zm\/cgi-bin\/nph-zms","PathToApi":"\/zm\/api","zmaudit":1,"zmstats":1,"zmtrigger":0,"zmeventnotification":0});
+
+const canView = {};
+const canEdit = {};
+  canView["Stream"] = true;
+  canEdit["Stream"] = false;
+  canView["Events"] = true;
+  canEdit["Events"] = true;
+  canView["Control"] = true;
+  canEdit["Control"] = true;
+  canView["Monitors"] = true;
+  canEdit["Monitors"] = true;
+  canView["Groups"] = true;
+  canEdit["Groups"] = true;
+  canView["Snapshots"] = false;
+  canEdit["Snapshots"] = false;
+  canView["System"] = true;
+  canEdit["System"] = false;
+  canView["Devices"] = true;
+  canEdit["Devices"] = true;
+
+const ANIMATE_THUMBS = true;
+const SCALE_BASE = 100;
+
+var refreshParent = false;
+var closePopup = false;
+
+var focusWindow = false;
+
+const imagePrefix = '?view=image&eid=';
+
+var auth_hash = 'ab348a6ccd68e57c0b9378eccddd61da';
+var auth_relay = 'auth=ab348a6ccd68e57c0b9378eccddd61da';
+var user = {"Id":3,"Username":"admin","Name":"admin","Email":"","Phone":"","Language":"","Enabled":1,"Stream":"View","Events":"Edit","Experiments":"None","Control":"Edit","Monitors":"Create","Groups":"Edit","Devices":"Edit","Snapshots":"None","System":"View","MaxBandwidth":"","TokenMinExpiry":0,"APIEnabled":1,"HomeView":"console","viewableMonitorIds":[],"unviewableMonitorIds":[]};
+var running = true;
+
+const STATE_UNKNOWN = 0;
+const STATE_IDLE = 1;
+const STATE_PREALARM = 2;
+const STATE_ALARM = 3;
+const STATE_ALERT = 4;
+const STATE_TAPE = 5;
+
+const CMD_ANALYZE_ON = 19;
+const CMD_ANALYZE_OFF = 20;
+const CMD_NONE = 0;
+const CMD_PAUSE = 1;
+const CMD_PLAY = 2;
+const CMD_VARPLAY = 15;
+const CMD_STOP = 3;
+const CMD_FASTFWD = 4;
+const CMD_SLOWFWD = 5;
+const CMD_SLOWREV = 6;
+const CMD_FASTREV = 7;
+const CMD_ZOOMIN = 8;
+const CMD_ZOOMOUT = 9;
+const CMD_ZOOMSTOP = 21;
+const CMD_PAN = 10;
+const CMD_SCALE = 11;
+const CMD_PREV = 12;
+const CMD_NEXT = 13;
+const CMD_SEEK = 14;
+const CMD_QUERY = 99;
+const CMD_QUIT = 17;
+const CMD_MAXFPS = 18;
+
+const stateStrings = new Array();
+stateStrings[STATE_UNKNOWN] = "Unknown";
+stateStrings[STATE_IDLE] = "Idle";
+stateStrings[STATE_PREALARM] = "Prealarm";
+stateStrings[STATE_ALARM] = "Alarm";
+stateStrings[STATE_ALERT] = "Alert";
+stateStrings[STATE_TAPE] = "Record";
+
+const ZM_ADD_JPEG_COMMENTS = '0';
+const ZM_AUDIT_CHECK_INTERVAL = 900;
+const ZM_AUDIT_MIN_AGE = 86400;
+const ZM_AUTH_HASH_IPS = '0';
+const ZM_AUTH_HASH_LOGINS = '1';
+const ZM_AUTH_HASH_TTL = 2;
+const ZM_AUTH_RELAY = 'hashed';
+const ZM_AUTH_TYPE = 'builtin';
+const ZM_BANDWIDTH_DEFAULT = 'high';
+const ZM_BULK_FRAME_INTERVAL = 100;
+const ZM_CAPTURES_PER_FRAME = 1;
+const ZM_CASE_INSENSITIVE_USERNAMES = '0';
+const ZM_CHECK_FOR_UPDATES = '1';
+const ZM_COLOUR_JPEG_FILES = '0';
+const ZM_COOKIE_LIFETIME = 3600;
+const ZM_CPU_EXTENSIONS = '1';
+const ZM_CSP_REPORT_URI = '';
+const ZM_CSS_DEFAULT = 'base';
+const ZM_DATE_FORMAT_PATTERN = '';
+const ZM_DATETIME_FORMAT_PATTERN = '';
+const ZM_DEFAULT_ASPECT_RATIO = '4:3';
+const ZM_DUMP_CORES = '0';
+const ZM_DYN_CURR_VERSION = '1.37.63';
+const ZM_DYN_DB_VERSION = '1.37.63';
+const ZM_DYN_DONATE_REMINDER_TIME = 1760391880;
+const ZM_DYN_LAST_CHECK = 1778497127;
+const ZM_DYN_LAST_VERSION = '1.38.1';
+const ZM_DYN_NEXT_REMINDER = '';
+const ZM_DYN_SHOW_DONATE_REMINDER = '1';
+const ZM_EMAIL_HOST = 'localhost';
+const ZM_ENABLE_CSRF_MAGIC = '1';
+const ZM_EVENT_CLOSE_MODE = 'idle';
+const ZM_EVENT_IMAGE_DIGITS = 5;
+const ZM_FAST_IMAGE_BLENDS = '1';
+const ZM_FEATURES_SNAPSHOTS = '0';
+const ZM_FFMPEG_FORMATS = 'mp4* mpg mpeg wmv asf avi mov swf 3gp**';
+const ZM_FFMPEG_INPUT_OPTIONS = '';
+const ZM_FFMPEG_OPEN_TIMEOUT = 10;
+const ZM_FFMPEG_OUTPUT_OPTIONS = '-r 25';
+const ZM_FILTER_EXECUTE_INTERVAL = 60;
+const ZM_FILTER_RELOAD_DELAY = 300;
+const ZM_FONT_FILE_LOCATION = '/usr/share/zoneminder/fonts/default.zmfnt';
+const ZM_FORCED_ALARM_SCORE = 255;
+const ZM_FROM_EMAIL = '';
+const ZM_HOME_ABOUT = '1';
+const ZM_HOME_CONTENT = 'ZoneMinder';
+const ZM_HOME_URL = 'http://zoneminder.com';
+const ZM_HTTP_TIMEOUT = 2500;
+const ZM_HTTP_UA = 'ZoneMinder';
+const ZM_HTTP_VERSION = '1.0';
+const ZM_JANUS_PATH = '';
+const ZM_JANUS_SECRET = '';
+const ZM_JPEG_ALARM_FILE_QUALITY = 0;
+const ZM_JPEG_FILE_QUALITY = 70;
+const ZM_JPEG_STREAM_QUALITY = 70;
+const ZM_LANG_DEFAULT = 'en_gb';
+const ZM_LD_PRELOAD = '';
+const ZM_LOCALE_DEFAULT = '';
+const ZM_LOG_ALARM_ERR_COUNT = 10;
+const ZM_LOG_ALARM_FAT_COUNT = 1;
+const ZM_LOG_ALARM_WAR_COUNT = 100;
+const ZM_LOG_ALERT_ERR_COUNT = 1;
+const ZM_LOG_ALERT_FAT_COUNT = 0;
+const ZM_LOG_ALERT_WAR_COUNT = 1;
+const ZM_LOG_CHECK_PERIOD = 900;
+const ZM_LOG_DATABASE_LIMIT = '7 day';
+const ZM_LOG_DEBUG = '0';
+const ZM_LOG_DEBUG_FILE = '';
+const ZM_LOG_DEBUG_LEVEL = 1;
+const ZM_LOG_DEBUG_TARGET = '';
+const ZM_LOG_FFMPEG = '1';
+const ZM_LOG_INJECT = '0';
+const ZM_LOG_LEVEL_DATABASE = 0;
+const ZM_LOG_LEVEL_FILE = 1;
+const ZM_LOG_LEVEL_SYSLOG = -1;
+const ZM_LOG_LEVEL_WEBLOG = -5;
+const ZM_MAX_RESTART_DELAY = 30;
+const ZM_MAX_RTP_PORT = 40499;
+const ZM_MAX_SUSPEND_TIME = 30;
+const ZM_MESSAGE_ADDRESS = '';
+const ZM_MESSAGE_BODY = 'ZM alarm detected - %EL% secs, %EF%/%EFA% frames, t%EST%/m%ESM%/a%ESA% score.';
+const ZM_MESSAGE_SUBJECT = 'ZoneMinder: Alarm - %MN%-%EI%';
+const ZM_MIN_RTP_PORT = 40200;
+const ZM_MIN_RTSP_PORT = '';
+const ZM_MIN_STREAMING_PORT = '';
+const ZM_MPEG_LIVE_FORMAT = 'swf';
+const ZM_MPEG_REPLAY_FORMAT = 'swf';
+const ZM_MPEG_TIMED_FRAMES = '1';
+const ZM_MQTT_HOSTNAME = 'mqtt.zoneminder.com';
+const ZM_MQTT_PASSWORD = '';
+const ZM_MQTT_PORT = 1883;
+const ZM_MQTT_TOPIC_PREFIX = 'ZoneMinder';
+const ZM_MQTT_USERNAME = '';
+const ZM_NEW_MAIL_MODULES = '0';
+const ZM_OPT_ADAPTIVE_SKIP = '1';
+const ZM_OPT_ALS_ALARM = '0';
+const ZM_OPT_ALS_LOGENTRY = '0';
+const ZM_OPT_ALS_PORT = 15002;
+const ZM_OPT_ALS_TRIGGEREVENT = '0';
+const ZM_OPT_CONTROL = '1';
+const ZM_OPT_EMAIL = '0';
+const ZM_OPT_FAST_DELETE = '0';
+const ZM_OPT_FFMPEG = '1';
+const ZM_OPT_GEOLOCATION_ACCESS_TOKEN = '';
+const ZM_OPT_GEOLOCATION_TILE_PROVIDER = '';
+const ZM_OPT_MESSAGE = '0';
+const ZM_OPT_TRIGGERS = '0';
+const ZM_OPT_UPLOAD = '0';
+const ZM_OPT_USE_ALARMSERVER = '0';
+const ZM_OPT_USE_API = '1';
+const ZM_OPT_USE_AUTH = '1';
+const ZM_OPT_USE_EVENTNOTIFICATION = '0';
+const ZM_OPT_USE_GEOLOCATION = '0';
+const ZM_OPT_USE_GOOG_RECAPTCHA = '0';
+const ZM_OPT_USE_LEGACY_API_AUTH = '1';
+const ZM_OPT_X10 = '0';
+const ZM_PATH_FFMPEG = '/usr/bin/ffmpeg';
+const ZM_RAND_STREAM = '1';
+const ZM_RECORD_DIAG_IMAGES = '0';
+const ZM_RECORD_DIAG_IMAGES_FIFO = '0';
+const ZM_RECORD_EVENT_STATS = '1';
+const ZM_RTSP2WEB_PATH = '';
+const ZM_RUN_AUDIT = '0';
+const ZM_SHM_KEY = '0x7a6d0000';
+const ZM_SHOW_PRIVACY = '0';
+const ZM_SKIN_DEFAULT = 'classic';
+const ZM_SSMTP_MAIL = '0';
+const ZM_SSMTP_PATH = '';
+const ZM_STATS_UPDATE_INTERVAL = 60;
+const ZM_STRICT_VIDEO_CONFIG = '1';
+const ZM_SYSTEM_SHUTDOWN = '0';
+const ZM_TELEMETRY_DATA = '0';
+const ZM_TELEMETRY_INTERVAL = '14*24*60*60';
+const ZM_TELEMETRY_LAST_UPLOAD = '';
+const ZM_TELEMETRY_SERVER_ENDPOINT = 'https://zmanon:2b2d0b4skps@telemetry.zoneminder.com/zmtelemetry/testing5';
+const ZM_TELEMETRY_UUID = '';
+const ZM_TIME_FORMAT_PATTERN = '';
+const ZM_TIMESTAMP_CODE_CHAR = '%';
+const ZM_TIMESTAMP_ON_CAPTURE = '1';
+const ZM_TIMEZONE = '';
+const ZM_UPDATE_CHECK_PROXY = '';
+const ZM_UPLOAD_ARCH_ANALYSE = '0';
+const ZM_UPLOAD_ARCH_COMPRESS = '0';
+const ZM_UPLOAD_ARCH_FORMAT = 'tar';
+const ZM_UPLOAD_DEBUG = '0';
+const ZM_UPLOAD_FTP_PASSIVE = '1';
+const ZM_UPLOAD_HOST = '';
+const ZM_UPLOAD_LOC_DIR = '/var/tmp/zm';
+const ZM_UPLOAD_PASS = '';
+const ZM_UPLOAD_PORT = '';
+const ZM_UPLOAD_PROTOCOL = 'ftp';
+const ZM_UPLOAD_REM_DIR = '';
+const ZM_UPLOAD_STRICT = '0';
+const ZM_UPLOAD_TIMEOUT = 120;
+const ZM_UPLOAD_USER = '';
+const ZM_URL = '';
+const ZM_USE_DEEP_STORAGE = '1';
+const ZM_USER_SELF_EDIT = '0';
+const ZM_V4L_MULTI_BUFFER = '1';
+const ZM_WATCH_CHECK_INTERVAL = 10;
+const ZM_WATCH_MAX_DELAY = '45';
+const ZM_WEB_ALARM_SOUND = 'snap.ogg';
+const ZM_WEB_ANIMATE_THUMBS = '1';
+const ZM_WEB_COMPACT_MONTAGE = '0';
+const ZM_WEB_CONSOLE_BANNER = '';
+const ZM_WEB_EVENT_DISK_SPACE = '1';
+const ZM_WEB_EVENT_SORT_FIELD = 'StartDateTime';
+const ZM_WEB_EVENT_SORT_ORDER = 'asc';
+const ZM_WEB_EVENTS_PER_PAGE = 25;
+const ZM_WEB_FILTER_SOURCE = 'Hostname';
+const ZM_WEB_H_AJAX_TIMEOUT = 10000;
+const ZM_WEB_H_CAN_STREAM = 'auto';
+const ZM_WEB_H_DEFAULT_RATE = 100;
+const ZM_WEB_H_DEFAULT_SCALE = 100;
+const ZM_WEB_H_EVENTS_VIEW = 'events';
+const ZM_WEB_H_REFRESH_CYCLE = 10;
+const ZM_WEB_H_REFRESH_EVENTS = 5;
+const ZM_WEB_H_REFRESH_IMAGE = 3;
+const ZM_WEB_H_REFRESH_MAIN = 240;
+const ZM_WEB_H_REFRESH_NAVBAR = 60;
+const ZM_WEB_H_REFRESH_STATUS = 1;
+const ZM_WEB_H_SCALE_THUMBS = '0';
+const ZM_WEB_H_SHOW_PROGRESS = '1';
+const ZM_WEB_H_STREAM_METHOD = 'jpeg';
+const ZM_WEB_H_VIDEO_BITRATE = 150000;
+const ZM_WEB_H_VIDEO_MAXFPS = 30;
+const ZM_WEB_H_VIEWING_TIMEOUT = '';
+const ZM_WEB_HOMEVIEW = 'console';
+const ZM_WEB_ID_ON_CONSOLE = '1';
+const ZM_WEB_L_AJAX_TIMEOUT = 10000;
+const ZM_WEB_L_CAN_STREAM = 'auto';
+const ZM_WEB_L_DEFAULT_RATE = 100;
+const ZM_WEB_L_DEFAULT_SCALE = 100;
+const ZM_WEB_L_EVENTS_VIEW = 'events';
+const ZM_WEB_L_REFRESH_CYCLE = 30;
+const ZM_WEB_L_REFRESH_EVENTS = 180;
+const ZM_WEB_L_REFRESH_IMAGE = 15;
+const ZM_WEB_L_REFRESH_MAIN = 300;
+const ZM_WEB_L_REFRESH_NAVBAR = 180;
+const ZM_WEB_L_REFRESH_STATUS = 10;
+const ZM_WEB_L_SCALE_THUMBS = '1';
+const ZM_WEB_L_SHOW_PROGRESS = '0';
+const ZM_WEB_L_STREAM_METHOD = 'jpeg';
+const ZM_WEB_L_VIDEO_BITRATE = 25000;
+const ZM_WEB_L_VIDEO_MAXFPS = 5;
+const ZM_WEB_L_VIEWING_TIMEOUT = '';
+const ZM_WEB_LIST_THUMB_HEIGHT = 0;
+const ZM_WEB_LIST_THUMB_WIDTH = 48;
+const ZM_WEB_LIST_THUMBS = '1';
+const ZM_WEB_M_AJAX_TIMEOUT = 5000;
+const ZM_WEB_M_CAN_STREAM = 'auto';
+const ZM_WEB_M_DEFAULT_RATE = 100;
+const ZM_WEB_M_DEFAULT_SCALE = 100;
+const ZM_WEB_M_EVENTS_VIEW = 'events';
+const ZM_WEB_M_REFRESH_CYCLE = 20;
+const ZM_WEB_M_REFRESH_EVENTS = 60;
+const ZM_WEB_M_REFRESH_IMAGE = 10;
+const ZM_WEB_M_REFRESH_MAIN = 300;
+const ZM_WEB_M_REFRESH_NAVBAR = 120;
+const ZM_WEB_M_REFRESH_STATUS = 5;
+const ZM_WEB_M_SCALE_THUMBS = '1';
+const ZM_WEB_M_SHOW_PROGRESS = '1';
+const ZM_WEB_M_STREAM_METHOD = 'jpeg';
+const ZM_WEB_M_VIDEO_BITRATE = 75000;
+const ZM_WEB_M_VIDEO_MAXFPS = 10;
+const ZM_WEB_M_VIEWING_TIMEOUT = '';
+const ZM_WEB_NAVBAR_STICKY = '0';
+const ZM_WEB_NAVBAR_TYPE = 'normal';
+const ZM_WEB_POPUP_ON_ALARM = '1';
+const ZM_WEB_RESIZE_CONSOLE = '1';
+const ZM_WEB_SOUND_ON_ALARM = '0';
+const ZM_WEB_TITLE = 'ZoneMinder';
+const ZM_WEB_TITLE_PREFIX = 'ZM';
+const ZM_WEB_USE_OBJECT_TAGS = '1';
+const ZM_WEB_XFRAME_WARN = '1';
+const ZM_WEIGHTED_ALARM_CENTRES = '0';
+const ZM_X10_DB_RELOAD_INTERVAL = 60;
+const ZM_X10_DEVICE = '/dev/ttyS0';
+const ZM_X10_HOUSE_CODE = 'A';
+var consoleRefreshTimeout = 240000;
+
+var showDonatePopup = false;
+var monitors = new Array();
+  </script>
+  <script src="cache/js_logger-base-1752558138.js"></script>
+  <script src="cache/skins_classic_views_js_console-base-1752558138.js"></script>
+  <script nonce="f8617a8fc113b7027b19877e56d4254e" src="cache/skins_classic_js_skin-base-1752558138.js"></script>
+  <script nonce="f8617a8fc113b7027b19877e56d4254e">CsrfMagic.end();</script></body>
+</html>

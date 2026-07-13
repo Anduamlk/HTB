@@ -1,0 +1,64 @@
+================================================================================
+HACK THE BOX - NEXUS MACHINE WRITE-UP / LOG
+================================================================================
+
+[+] TARGET IP     : 10.129.107.253
+[+] ATTACKER IP   : 10.10.16.13
+[+] DATE          : 2026-07-02
+
+--------------------------------------------------------------------------------
+1. ENUMERATION & INITIAL ACCESS
+--------------------------------------------------------------------------------
+* Initial mapping added to /etc/hosts for:
+  - billing.nexus.htb
+  - git.nexus.htb (Gitea instance)
+
+* Discovered Gitea instance information from:
+  http://nexus.htb
+  http://nexus.htb
+
+* Identified a Remote Code Execution (RCE) vulnerability on the billing site.
+* Uploaded a web shell to the following path:
+  http://nexus.htb
+
+* Triggered a reverse shell to Kali listener (port 4444) and gained initial access
+  as the 'www-data' user:
+  uid=33(www-data) gid=33(www-data) groups=33(www-data)
+
+--------------------------------------------------------------------------------
+2. CREDENTIAL HARVESTING & LATERAL MOVEMENT
+--------------------------------------------------------------------------------
+* Inspected the local application environment file of the Krayin CRM instance:
+  Path: ~/krayin/.env
+
+* Discovered hardcoded database credentials:
+  - DB_CONNECTION = mysql
+  - DB_HOST       = 127.0.0.1
+  - DB_DATABASE   = krayin
+  - DB_USERNAME   = krayin
+  - DB_PASSWORD   = y27xb3ha!!74GbR
+
+* Checked local system users inside /etc/passwd:
+  - root (UID 0)
+  - jones (UID 1000)
+  - git (UID 111)
+
+* Attempted credential reuse via SSH with user 'jones' and the found password.
+  Command: ssh jones@10.129.107.253
+  Status: SUCCESSFUL LOGIN
+
+--------------------------------------------------------------------------------
+3. USER FLAG
+--------------------------------------------------------------------------------
+* Location: /home/jones/user.txt
+* Value   : fba6fd78578e87e3af05714057632690
+
+--------------------------------------------------------------------------------
+4. PRIVILEGE ESCALATION (IN PROGRESS)
+--------------------------------------------------------------------------------
+* Target: root.txt
+* Action items to execute from the 'jones' SSH session:
+  1. Check sudo privileges: sudo -l
+  2. Inspect automated tasks: systemctl list-timers --all
+  3. Scan for SUID binaries: find / -perm -4000 -type f 2>/dev/null
+================================================================================

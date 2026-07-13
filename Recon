@@ -1,0 +1,3 @@
+ gobuster dir -u http://orion.htb -w /usr/share/seclists/Discovery/Web-Content/common.txt -x git,bak,txt,cfg,zip
+gobuster dir -u http://orion.htb -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php,html,txt,js,css -t 50
+ffuf -u http://orion.htb/FUZZ -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt -c -t 50 -fc 404,403

