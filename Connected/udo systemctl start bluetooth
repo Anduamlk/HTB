@@ -1,0 +1,19 @@
+[0;1;32m●[0m bluetooth.service - Bluetooth service
+     Loaded: loaded (]8;;file://kali/usr/lib/systemd/system/bluetooth.service\/usr/lib/systemd/system/bluetooth.service]8;;\; [0;1;32menabled[0m; preset: [0;1;38:5:185mdisabled[0m)
+     Active: [0;1;32mactive (running)[0m since Tue 2026-07-14 01:47:13 EDT; 6h ago
+ Invocation: 4e605c3c25e2493ea4602ec7850d42e0
+       Docs: ]8;;man:bluetoothd(8)\man:bluetoothd(8)]8;;\
+   Main PID: 677 (bluetoothd)
+     Status: "[0;1;36mRunning[0m"
+      Tasks: 1[0;38:5:245m (limit: 18721)[0m
+     Memory: 3.9M (peak: 4.9M)
+        CPU: 61ms
+     CGroup: /system.slice/bluetooth.service
+             └─[0;38:5:245m677 /usr/libexec/bluetooth/bluetoothd[0m
+
+Jul 14 01:47:13 kali systemd[1]: Starting bluetooth.service - Bluetooth service...
+Jul 14 01:47:13 kali (bluetoothd)[677]: [0;1;38:5:185m[0;1;39m[0;1;38:5:185mbluetooth.service: ConfigurationDirectory 'bluetooth' already exists but the mode is different. (File system: 755 ConfigurationDirectoryMode: 555)[0m
+Jul 14 01:47:13 kali bluetoothd[677]: Bluetooth daemon 5.84
+Jul 14 01:47:13 kali systemd[1]: Started bluetooth.service - Bluetooth service.
+Jul 14 01:47:13 kali bluetoothd[677]: Starting SDP server
+Jul 14 01:47:13 kali bluetoothd[677]: Bluetooth management interface 1.23 initialized
