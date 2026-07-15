@@ -1,0 +1,557 @@
+<?php
+
+/*
+ * OpenSTAManager: il software gestionale open source per l'assistenza tecnica e la fatturazione
+ * Copyright (C) DevCode s.r.l.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+include_once __DIR__.'/../../core.php';
+use Carbon\Carbon;
+use Models\Module;
+
+$date_start = filter('date_start');
+$date_end = filter('date_end');
+
+$anno_precedente_start = (new Carbon($date_start))->subYears(1)->format('Y-m-d');
+$anno_precedente_end = (new Carbon($date_end))->subYears(1)->format('Y-m-d');
+$periodo = setting('Liquidazione IVA');
+
+if ($periodo == 'Mensile') {
+    $periodo_precedente_start = (new Carbon($date_start))->subMonth()->format('Y-m-d');
+    $periodo_precedente_end = (new Carbon($date_end))->subMonth()->format('Y-m-d');
+} else {
+    $periodo_precedente_start = (new Carbon($date_start))->subMonths(3)->format('Y-m-d');
+    $periodo_precedente_end = (new Carbon($date_end))->subMonths(3)->format('Y-m-d');
+}
+
+$vendita_banco = Module::where('name', 'Vendita al banco')->first()->id;
+$maggiorazione = 0;
+
+// calcolo IVA su fatture + vendite al banco
+if (!empty($vendita_banco)) {
+    $iva_vendite_esigibile = $dbo->fetchArray('
+    SELECT
+        `id`,
+        `cod_iva`,
+        `aliquota`,
+        `descrizione`,
+        SUM(`iva`) AS iva,
+        SUM(`subtotale`) AS subtotale
+    FROM
+        (
+        SELECT
+            `co_documenti`.`id` AS id,
+            `co_iva`.`codice_natura_fe` AS cod_iva,
+            `co_iva`.`percentuale` AS aliquota,
+            `co_iva_lang`.`title` AS descrizione,
+            SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+            SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+            IF(
+                (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+                DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+                DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+            ) AS data_competenza_iva
+        FROM
+            `co_iva`
+            LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+            INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+            INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+            INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+        WHERE
+            `co_tipidocumento`.`dir` = "entrata" AND `co_righe_documenti`.`is_descrizione` = 0 AND `co_documenti`.`split_payment` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+        GROUP BY
+            `cod_iva`, `aliquota`, `descrizione`, `co_documenti`.`id`
+        HAVING
+            data_competenza_iva BETWEEN '.prepare($date_start).' AND '.prepare($date_end).'
+    UNION
+        SELECT
+            `vb_venditabanco`.`id` AS id,
+            `co_iva`.`codice_natura_fe` AS cod_iva,
+            `co_iva`.`percentuale` AS aliquota,
+            `co_iva_lang`.`title` AS descrizione,
+            SUM(`vb_righe_venditabanco`.`iva`) AS iva,
+            SUM(
+                `vb_righe_venditabanco`.`subtotale` - `vb_righe_venditabanco`.`sconto`
+            ) AS subtotale,
+            `vb_venditabanco`.`data` as data_competenza_iva
+        FROM
+            `co_iva`
+            LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+            INNER JOIN `vb_righe_venditabanco` ON `vb_righe_venditabanco`.`idiva` = `co_iva`.`id`
+            INNER JOIN `vb_venditabanco` ON `vb_venditabanco`.`id` = `vb_righe_venditabanco`.`idvendita`
+            INNER JOIN `vb_stati_vendita` ON `vb_venditabanco`.`idstato` = `vb_stati_vendita`.`id`
+        WHERE
+            `vb_righe_venditabanco`.`is_descrizione` = 0 AND `vb_stati_vendita`.`descrizione` = "Pagato"
+        GROUP BY
+            `cod_iva`, `aliquota`, `descrizione`, `vb_venditabanco`.`id`
+        HAVING
+            data_competenza_iva BETWEEN '.prepare($date_start).' AND '.prepare($date_end).'
+        ) AS tabella
+    GROUP BY
+        `cod_iva`,
+        `aliquota`,
+        `descrizione`,
+        `id`');
+
+    $iva_vendite = $dbo->fetchArray('
+    SELECT
+        `id`,
+        `cod_iva`,
+        `aliquota`,
+        `descrizione`,
+        SUM(`iva`) AS iva,
+        SUM(`subtotale`) AS subtotale
+    FROM
+        (
+        SELECT
+            `co_documenti`.`id` AS id,
+            `co_iva`.`codice_natura_fe` AS cod_iva,
+            `co_iva`.`percentuale` AS aliquota,
+            `co_iva_lang`.`title` AS descrizione,
+            SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+            SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+            IF(
+                (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+                DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+                DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+            ) AS data_competenza_iva
+        FROM
+            `co_iva`
+            LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+            INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = co_iva.id
+            INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+            INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+        WHERE
+            `co_tipidocumento`.`dir` = "entrata" AND `co_righe_documenti`.`is_descrizione` = 0 AND `idstatodocumento` NOT IN(SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+        GROUP BY
+            `cod_iva`, `aliquota`, `descrizione`, `co_documenti`.`id`
+        HAVING
+            data_competenza_iva BETWEEN '.prepare($date_start).' AND '.prepare($date_end).'
+    UNION
+        SELECT
+            `vb_venditabanco`.`id` AS id,
+            `co_iva`.`codice_natura_fe` AS cod_iva,
+            `co_iva`.`percentuale` AS aliquota,
+            `co_iva_lang`.`title` AS descrizione,
+            SUM(`vb_righe_venditabanco`.`iva`) AS iva,
+            SUM(`vb_righe_venditabanco`.`subtotale` - `vb_righe_venditabanco`.`sconto`) AS subtotale,
+            `vb_venditabanco`.`data` as data_competenza_iva
+        FROM
+            `co_iva`
+            LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+            INNER JOIN `vb_righe_venditabanco` ON `vb_righe_venditabanco`.`idiva` = `co_iva`.`id`
+            INNER JOIN `vb_venditabanco` ON `vb_venditabanco`.`id` = `vb_righe_venditabanco`.`idvendita`
+            INNER JOIN `vb_stati_vendita` ON `vb_venditabanco`.`idstato` = `vb_stati_vendita`.`id`
+        WHERE
+            `vb_righe_venditabanco`.`is_descrizione` = 0 AND `vb_stati_vendita`.`descrizione` = "Pagato"
+        GROUP BY
+            `cod_iva`, `aliquota`, `descrizione`, `vb_venditabanco`.`id`
+        HAVING
+            data_competenza_iva BETWEEN '.prepare($date_start).' AND '.prepare($date_end).'
+        ) AS tabella
+    GROUP BY
+        `cod_iva`,
+        `aliquota`,
+        `descrizione`,
+        `id`');
+
+    $iva_vendite_anno_precedente = $dbo->fetchArray('
+    SELECT
+        `id`,
+        `cod_iva`,
+        `aliquota`,
+        `descrizione`,
+        SUM(`iva`) AS iva,
+        SUM(`subtotale`) AS subtotale
+    FROM
+        (
+        SELECT
+            `co_documenti`.`id` AS id,
+            `co_iva`.`codice_natura_fe` AS cod_iva,
+            `co_iva`.`percentuale` AS aliquota,
+            `co_iva_lang`.`title` AS descrizione,
+            SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+            SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+            IF(
+                (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+                DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+                DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+            ) AS data_competenza_iva
+        FROM
+            `co_iva`
+            LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+            INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+            INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+            INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+        WHERE
+            `co_tipidocumento`.`dir` = "entrata" AND `co_righe_documenti`.`is_descrizione` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+        GROUP BY
+            `cod_iva`, `aliquota`, `descrizione`, `co_documenti`.`id`
+        HAVING
+            data_competenza_iva BETWEEN '.prepare($anno_precedente_start).' AND '.prepare($anno_precedente_end).'
+    UNION
+        SELECT
+            `vb_venditabanco`.`id` AS id,
+            `co_iva`.`codice_natura_fe` AS cod_iva,
+            `co_iva`.`percentuale` AS aliquota,
+            `co_iva_lang`.`title` AS descrizione,
+            SUM(`vb_righe_venditabanco`.`iva`) AS iva,
+            SUM(`vb_righe_venditabanco`.`subtotale` - `vb_righe_venditabanco`.`sconto`) AS subtotale,
+            `vb_venditabanco`.`data` as data_competenza_iva
+        FROM
+            `co_iva`
+            LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+            INNER JOIN `vb_righe_venditabanco` ON `vb_righe_venditabanco`.`idiva` = `co_iva`.`id`
+            INNER JOIN `vb_venditabanco` ON `vb_venditabanco`.`id` = `vb_righe_venditabanco`.`idvendita`
+            INNER JOIN `vb_stati_vendita` ON `vb_venditabanco`.`idstato` = `vb_stati_vendita`.`id`
+        WHERE
+            `vb_righe_venditabanco`.`is_descrizione` = 0 AND `vb_stati_vendita`.`descrizione` = "Pagato"
+        GROUP BY
+            `cod_iva`, `aliquota`, `descrizione`, `vb_venditabanco`.`id`
+        HAVING
+            data_competenza_iva BETWEEN '.prepare($anno_precedente_start).' AND '.prepare($anno_precedente_end).'
+        ) AS tabella
+    GROUP BY
+        `cod_iva`,
+        `aliquota`,
+        `descrizione`,
+        `id`');
+
+    $iva_vendite_periodo_precedente = $dbo->fetchArray('
+    SELECT
+        `id`,
+        `cod_iva`,
+        `aliquota`,
+        `descrizione`,
+        SUM(`iva`) AS iva,
+        SUM(`subtotale`) AS subtotale
+    FROM
+        (
+        SELECT
+            `co_documenti`.`id` AS id,
+            `co_iva`.`codice_natura_fe` AS cod_iva,
+            `co_iva`.`percentuale` AS aliquota,
+            `co_iva_lang`.`title` AS descrizione,
+            SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+            SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+            IF(
+                (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+                DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+                DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+            ) AS data_competenza_iva
+        FROM
+            `co_iva`
+            LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+            INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+            INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+            INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+        WHERE
+            `co_tipidocumento`.`dir` = "entrata" AND `co_righe_documenti`.`is_descrizione` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+        GROUP BY
+            `cod_iva`, `aliquota`, `descrizione`, `co_documenti`.`id`
+        HAVING
+            data_competenza_iva BETWEEN '.prepare($periodo_precedente_start).' AND '.prepare($periodo_precedente_end).'
+    UNION
+        SELECT
+            `vb_venditabanco`.`id` AS id,
+            `co_iva`.`codice_natura_fe` AS cod_iva,
+            `co_iva`.`percentuale` AS aliquota,
+            `co_iva_lang`.`title` AS descrizione,
+            SUM(`vb_righe_venditabanco`.`iva`) AS iva,
+            SUM(`vb_righe_venditabanco`.`subtotale` - `vb_righe_venditabanco`.`sconto`) AS subtotale,
+            `vb_venditabanco`.`data` as data_competenza_iva
+        FROM
+            `co_iva`
+            LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+            INNER JOIN `vb_righe_venditabanco` ON `vb_righe_venditabanco`.`idiva` = `co_iva`.`id`
+            INNER JOIN `vb_venditabanco` ON `vb_venditabanco`.`id` = `vb_righe_venditabanco`.`idvendita`
+            INNER JOIN `vb_stati_vendita` ON `vb_venditabanco`.`idstato` = `vb_stati_vendita`.`id`
+        WHERE
+            `vb_righe_venditabanco`.`is_descrizione` = 0 AND `vb_stati_vendita`.`descrizione` = "Pagato"
+        GROUP BY
+            `cod_iva`, `aliquota`, `descrizione`, `vb_venditabanco`.`id`
+        HAVING
+            data_competenza_iva BETWEEN '.prepare($periodo_precedente_start).' AND '.prepare($periodo_precedente_end).'
+        ) AS tabella
+    GROUP BY
+        `cod_iva`,
+        `aliquota`,
+        `descrizione`,
+        `id`');
+}
+
+// calcolo IVA solo su fatture
+else {
+    $iva_vendite_esigibile = $dbo->fetchArray('
+    SELECT
+        `co_iva`.`codice_natura_fe` AS cod_iva,
+        `co_iva`.`percentuale` AS aliquota,
+        `co_iva_lang`.`title` AS descrizione,
+        SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+        SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+        IF(
+            (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+            DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+            DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+        ) AS data_competenza_iva
+    FROM
+        `co_iva`
+        LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+        INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+        INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+        INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+    WHERE
+        `co_tipidocumento`.`dir` = "entrata" AND `co_righe_documenti`.`is_descrizione` = 0 AND `co_documenti`.`split_payment` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+    GROUP BY
+        `co_iva`.`id`, `co_documenti`.`id`
+    HAVING
+        data_competenza_iva BETWEEN '.prepare($date_start).' AND '.prepare($date_end).'
+    ORDER BY `aliquota` desc');
+
+    $iva_vendite = $dbo->fetchArray('
+    SELECT
+        `co_iva`.`codice_natura_fe` AS cod_iva,
+        `co_iva`.`percentuale` AS aliquota,
+        `co_iva_lang`.`title` AS descrizione,
+        SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+        SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+        IF(
+            (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+            DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+            DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+        ) AS data_competenza_iva
+    FROM
+        `co_iva`
+        LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+        INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+        INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+        INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+    WHERE
+        `co_tipidocumento`.`dir` = "entrata" AND `co_righe_documenti`.`is_descrizione` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+    GROUP BY
+        `co_iva`.`id`, `co_documenti`.`id`
+    HAVING
+        data_competenza_iva BETWEEN '.prepare($date_start).' AND '.prepare($date_end).'
+    ORDER BY `aliquota` desc');
+
+    $iva_vendite_anno_precedente = $dbo->fetchArray('
+    SELECT
+        `co_iva`.`codice_natura_fe` AS cod_iva,
+        `co_iva`.`percentuale` AS aliquota,
+        `co_iva_lang`.`title` AS descrizione,
+        SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+        SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+        IF(
+            (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+            DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+            DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+        ) AS data_competenza_iva
+    FROM
+        `co_iva`
+        LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+        INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+        INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+        INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+    WHERE
+        `co_tipidocumento`.`dir` = "entrata" AND `co_righe_documenti`.`is_descrizione` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+    GROUP BY
+        `co_iva`.`id`, `co_documenti`.`id`
+    HAVING
+        data_competenza_iva BETWEEN '.prepare($anno_precedente_start).' AND '.prepare($anno_precedente_end).'
+    ORDER BY aliquota desc');
+
+    $iva_vendite_periodo_precedente = $dbo->fetchArray('
+    SELECT
+        `co_iva`.`codice_natura_fe` AS cod_iva,
+        `co_iva`.`percentuale` AS aliquota,
+        `co_iva_lang`.`title` AS descrizione,
+        SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+        SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+        IF(
+            (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+            DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+            DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+        ) AS data_competenza_iva
+    FROM
+        `co_iva`
+        LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+        INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+        INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+        INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+    WHERE
+        `co_tipidocumento`.`dir` = "entrata" AND `co_righe_documenti`.`is_descrizione` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+    GROUP BY
+        `co_iva`.`id`, `co_documenti`.`id`
+    HAVING
+        data_competenza_iva BETWEEN '.prepare($periodo_precedente_start).' AND '.prepare($periodo_precedente_end).'
+    ORDER BY `aliquota` desc');
+}
+
+$iva_vendite_nonesigibile = $dbo->fetchArray('
+    SELECT
+        `co_iva`.`codice_natura_fe` AS cod_iva,
+        `co_iva`.`percentuale` AS aliquota,
+        `co_iva_lang`.`title` AS descrizione,
+        SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+        SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+        IF(
+            (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+            DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+            DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+        ) AS data_competenza_iva
+    FROM
+        `co_iva`
+        LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+        INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+        INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+        INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+    WHERE
+        `co_tipidocumento`.`dir` = "entrata" AND `co_righe_documenti`.`is_descrizione` = 0 AND `co_documenti`.`split_payment` = 1 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+    GROUP BY
+        `co_iva`.`id`, `co_documenti`.`id`
+    HAVING
+        data_competenza_iva BETWEEN '.prepare($date_start).' AND '.prepare($date_end).'
+    ORDER BY `aliquota` desc');
+
+$iva_acquisti_detraibile = $dbo->fetchArray('
+    SELECT
+        `co_iva`.`codice_natura_fe` AS cod_iva,
+        `co_iva`.`percentuale` AS aliquota,
+        `co_iva_lang`.`title` AS descrizione,
+        SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+        SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+        IF(
+            (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+            DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+            DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+        ) AS data_competenza_iva
+    FROM
+        `co_iva`
+        LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+        INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+        INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+        INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+    WHERE
+        `co_tipidocumento`.`dir` = "uscita" AND `co_righe_documenti`.`is_descrizione` = 0 AND `co_documenti`.`split_payment` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata")) AND `co_iva`.`indetraibile` != 100
+    GROUP BY
+        `co_iva`.`id`, `co_documenti`.`id`
+    HAVING
+        data_competenza_iva BETWEEN '.prepare($date_start).' AND '.prepare($date_end).'
+    ORDER BY `aliquota` desc');
+
+$iva_acquisti_nondetraibile = $dbo->fetchArray('
+    SELECT
+        `co_iva`.`codice_natura_fe` AS cod_iva,
+        `co_iva`.`percentuale` AS aliquota,
+        `co_iva_lang`.`title` AS descrizione,
+        SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *`indetraibile`/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+        SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+        IF(
+            (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+            DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+            DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+        ) AS data_competenza_iva
+    FROM
+        `co_iva`
+        LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+        INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+        INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+        INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+    WHERE
+        `co_tipidocumento`.`dir` = "uscita" AND `co_righe_documenti`.`is_descrizione` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata")) AND `co_iva`.`indetraibile` != 0
+    GROUP BY
+        `co_iva`.`id`, `co_documenti`.`id`
+    HAVING
+        data_competenza_iva BETWEEN '.prepare($date_start).' AND '.prepare($date_end).'
+    ORDER BY `aliquota` desc');
+
+$iva_acquisti = $dbo->fetchArray('
+    SELECT
+        `co_iva`.`codice_natura_fe` AS cod_iva,
+        `co_iva`.`percentuale` AS aliquota,
+        `co_iva_lang`.`title` AS descrizione,
+        SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+        SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+        IF(
+            (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+            DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+            DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+        ) AS data_competenza_iva
+    FROM
+        `co_iva`
+        LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+        INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+        INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+        INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+    WHERE
+        `co_tipidocumento`.`dir` = "uscita" AND `co_righe_documenti`.`is_descrizione` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+    GROUP BY
+        `co_iva`.`id`, `co_documenti`.`id`
+    HAVING
+        data_competenza_iva BETWEEN '.prepare($date_start).' AND '.prepare($date_end).'
+    ORDER BY `aliquota` desc');
+
+$iva_acquisti_anno_precedente = $dbo->fetchArray('
+    SELECT
+        `co_iva`.`codice_natura_fe` AS cod_iva,
+        `co_iva`.`percentuale` AS aliquota,
+        `co_iva_lang`.`title` AS descrizione,
+        SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+        SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+        IF(
+            (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+            DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+            DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+        ) AS data_competenza_iva
+    FROM
+        `co_iva`
+        LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+        INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+        INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+        INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+    WHERE
+        `co_tipidocumento`.`dir` = "uscita" AND `co_righe_documenti`.`is_descrizione` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+    GROUP BY
+        `co_iva`.`id`, `co_documenti`.`id`
+    HAVING
+        data_competenza_iva BETWEEN '.prepare($anno_precedente_start).' AND '.prepare($anno_precedente_end).'
+    ORDER BY `aliquota` desc');
+
+$iva_acquisti_periodo_precedente = $dbo->fetchArray('
+    SELECT
+        `co_iva`.`codice_natura_fe` AS cod_iva,
+        `co_iva`.`percentuale` AS aliquota,
+        `co_iva_lang`.`title` AS descrizione,
+        SUM((`subtotale`-`sconto`+`co_righe_documenti`.`rivalsainps`) *`percentuale`/100 *(100-`indetraibile`)/100 *(IF(`co_tipidocumento`.`reversed` = 0, 1,-1 ))) AS iva,
+        SUM((`co_righe_documenti`.`subtotale` - `co_righe_documenti`.`sconto` + `co_righe_documenti`.`rivalsainps`) *(IF(`co_tipidocumento`.`reversed` = 0,1,-1))) AS subtotale,
+        IF(
+            (YEAR(co_documenti.data_registrazione) = YEAR(co_documenti.data_competenza) AND MONTH(co_documenti.data_registrazione) > MONTH(co_documenti.data_competenza) AND DAY(co_documenti.data_registrazione) >= 16) OR (YEAR(co_documenti.data_registrazione) > YEAR(co_documenti.data_competenza)),
+            DATE_FORMAT(co_documenti.data_registrazione, \'%Y-%m-01\'),
+            DATE_FORMAT(co_documenti.data_competenza, \'%Y-%m-01\')
+        ) AS data_competenza_iva
+    FROM
+        `co_iva`
+        LEFT JOIN `co_iva_lang` ON (`co_iva`.`id` = `co_iva_lang`.`id_record` AND `co_iva_lang`.`id_lang` = '.prepare(Models\Locale::getDefault()->id).')
+        INNER JOIN `co_righe_documenti` ON `co_righe_documenti`.`idiva` = `co_iva`.`id`
+        INNER JOIN `co_documenti` ON `co_documenti`.`id` = `co_righe_documenti`.`iddocumento`
+        INNER JOIN `co_tipidocumento` ON `co_tipidocumento`.`id` = `co_documenti`.`idtipodocumento`
+    WHERE
+        `co_tipidocumento`.`dir` = "uscita" AND `co_righe_documenti`.`is_descrizione` = 0 AND `idstatodocumento` NOT IN (SELECT `id` FROM `co_statidocumento` WHERE `name` IN ("Bozza", "Annullata"))
+    GROUP BY
+        `co_iva`.`id`, `co_documenti`.`id`
+    HAVING
+        data_competenza_iva BETWEEN '.prepare($periodo_precedente_start).' AND '.prepare($periodo_precedente_end).'
+    ORDER BY `aliquota` desc');

