@@ -281,8 +281,8 @@ Vulnerabilities Exploited:
 
 Flags Obtained:
 ───────────────
-User Flag:  91eb0ce69c7e730e367bef04c81b12a1
-Root Flag:  1a91c9eb7de0392d8a6d685113fcb245
+User Flag:  91eb0ce69c7e730e367bef04c81b1***
+Root Flag:  1a91c9eb7de0392d8a6d685113fcb***
 
 ═══════════════════════════════════════════════════════════════════════════════
 MITIGATION RECOMMENDATIONS

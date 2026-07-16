@@ -235,8 +235,8 @@ SUMMARY
 
 Flags Obtained:
 ───────────────
-User Flag:  d32a258fed8804a44e2425167b6bd1ad
-Root Flag:  e694103aef0af05cfb179ba7feb381e9
+User Flag:  d32a258fed8804a44e2425167b6bd***
+Root Flag:  e694103aef0af05cfb179ba7feb38***
 
 Vulnerabilities Exploited:
 ─────────────────────────

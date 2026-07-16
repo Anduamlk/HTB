@@ -166,10 +166,10 @@ SSH login as wacky using the cracked password:
 │ uid=1001(wacky) gid=1001(wacky) groups=1001(wacky)                       │
 │                                                                           │
 │ wacky@wingdata:~$ cat user.txt                                            │
-│ 5e2c5855322b2b6948c038a383255f67                                          │
+│ 5e2c5855322b2b6948c038a383255f***                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-USER FLAG: 5e2c5855322b2b6948c038a383255f67
+USER FLAG: 5e2c5855322b2b6948c038a383255***
 
 ═══════════════════════════════════════════════════════════════════════════════
 5. PRIVILEGE ESCALATION - PYTHON TARFILE CVE-2025-4517
@@ -328,10 +328,10 @@ SSH as root using the injected key:
 │ root.txt                                                                  │
 │                                                                           │
 │ root@wingdata:~# cat root.txt                                             │
-│ 9c91b64beddcf9c4f4ae944252bd4206                                          │
+│ 9c91b64beddcf9c4f4ae944252bd4***                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-ROOT FLAG: 9c91b64beddcf9c4f4ae944252bd4206
+ROOT FLAG: 9c91b64beddcf9c4f4ae944252bd4***
 
 ═══════════════════════════════════════════════════════════════════════════════
 7. SUMMARY
@@ -339,8 +339,8 @@ ROOT FLAG: 9c91b64beddcf9c4f4ae944252bd4206
 
 Flags Obtained:
 ───────────────
-User Flag:  5e2c5855322b2b6948c038a383255f67
-Root Flag:  9c91b64beddcf9c4f4ae944252bd4206
+User Flag:  5e2c5855322b2b6948c038a38***
+Root Flag:  9c91b64beddcf9c4f4ae9442***
 
 Vulnerabilities Exploited:
 ─────────────────────────

@@ -65,9 +65,9 @@ uid=999(asterisk) gid=1000(asterisk) groups=1000(asterisk)
 ================================================================================
 
 cat /home/asterisk/user.txt
-4c8adf7f5da39fb14675e7d0773c7b84
+4c8adf7f5da39fb14675e7d0773c7***
 
-USER FLAG: 4c8adf7f5da39fb14675e7d0773c7b84
+USER FLAG: 4c8adf7f5da39fb14675e7d0773c7***
 
 ================================================================================
 5. PRIVILEGE ESCALATION
@@ -117,8 +117,8 @@ ROOT FLAG: 7a6b9d6a93d8970a213755a110c14093
 7. FLAG SUMMARY
 ================================================================================
 
-USER FLAG: 4c8adf7f5da39fb14675e7d0773c7b84
-ROOT FLAG: 7a6b9d6a93d8970a213755a110c14093
+USER FLAG: 4c8adf7f5da39fb14675e7d0773c***
+ROOT FLAG: 7a6b9d6a93d8970a213755a110c14***
 
 ================================================================================
 8. CREDENTIALS SUMMARY
