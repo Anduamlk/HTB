@@ -51,7 +51,7 @@ HACK THE BOX - NEXUS MACHINE WRITE-UP / LOG
 3. USER FLAG
 --------------------------------------------------------------------------------
 * Location: /home/jones/user.txt
-* Value   : fba6fd78578e87e3af05714057632690
+* Value   : fba6fd78578e87e3af05714057632***
 
 --------------------------------------------------------------------------------
 4. PRIVILEGE ESCALATION (IN PROGRESS)

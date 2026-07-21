@@ -256,10 +256,10 @@ The -f flag skips authentication, granting root access without password.
 │ root@orion:~# ls                                                           │
 │ root.txt  snap                                                             │
 │ root@orion:~# cat root.txt                                                 │
-│ 1a91c9eb7de0392d8a6d685113fcb245                                           │
+│ 1a91c9eb7de0392d8a6d685113fcb****                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-ROOT FLAG: 1a91c9eb7de0392d8a6d685113fcb245
+ROOT FLAG: 1a91c9eb7de0392d8a6d685113fcb***
 
 ═══════════════════════════════════════════════════════════════════════════════
 SUMMARY

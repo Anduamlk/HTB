@@ -194,7 +194,7 @@ root
 root@cctv:/etc/motioneye# cat /root/root.txt
 e4d3601e9dc5ccc8c8b2b77834647991
 
-ROOT FLAG: e4d3601e9dc5ccc8c8b2b77834647991
+ROOT FLAG: e4d3601e9dc5ccc8c8b2b7783464**
 
 ================================================================================
 9. FLAG SUMMARY

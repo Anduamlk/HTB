@@ -215,7 +215,7 @@ Password: SuperDuperPass123
 admin@2million:~$ cat /home/admin/user.txt
 546fd184792cdddcae961cc170d1f4f6
 
-USER FLAG: 546fd184792cdddcae961cc170d1f4f6
+USER FLAG: 546fd184792cdddcae961cc170d1f***
 
 ================================================================================
 9. PRIVILEGE ESCALATION - KERNEL EXPLOIT
